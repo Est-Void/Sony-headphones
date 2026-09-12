@@ -61,8 +61,8 @@ local function gaugeBlock()
 	if gaugePath and gaugePath ~= "" then
 		barNode = ui.image({
 			path = gaugePath,
-			width = 300,
-			height = 32,
+			width = 260,
+			height = 28,
 			fit = "contain",
 		})
 	else

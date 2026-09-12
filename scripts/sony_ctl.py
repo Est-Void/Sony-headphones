@@ -356,24 +356,13 @@ def _rgba(hex_color: str, alpha: float) -> str:
     return "rgba(%d,%d,%d,%.2f)" % (r, g, b, alpha)
 
 
-def _mix_hex(hex1: str, hex2: str, t: float) -> str:
-    """Linear mix of two #rrggbb colors."""
-    try:
-        a = tuple(int(hex1[i : i + 2], 16) for i in (1, 3, 5))
-        b = tuple(int(hex2[i : i + 2], 16) for i in (1, 3, 5))
-    except Exception:
-        return hex1
-    m = tuple(round(x + (y - x) * t) for x, y in zip(a, b))
-    return "#%02x%02x%02x" % m
-
-
 def gauge_svg(level: int, charging: bool) -> str:
-    """Dual-layer battery bar as SVG text (final design).
+    """Dual-segment battery bar as SVG text (final design).
 
-    One rounded bar, two layers on top of each other: full-width dim layer
-    (empty part, accent at low alpha) + bright fill layer (charge level,
-    accent gradient with diagonal hatch). At 100% the dim layer is fully
-    covered. Every color derives from the live Noctalia palette. stdlib only.
+    Schematic: (=========)(===) — a bright SOLID charge segment grows from
+    the left, a dim empty segment shrinks toward it from the right; widths
+    follow the current level. Every color derives from the live Noctalia
+    palette. stdlib only.
     """
     roles = _theme_colors()
     if level <= 20 and not charging:
@@ -382,34 +371,21 @@ def gauge_svg(level: int, charging: bool) -> str:
         base = roles["secondary"]
     else:
         base = roles["primary"]
-    light = _mix_hex(base, "#ffffff", 0.40)
     dim = _rgba(base, 0.22)
-    hatch = _rgba(roles["on_primary"], 0.30)
 
-    W, H, PAD = 300, 32, 2
+    W, H, PAD = 260, 32, 2
     track_w = W - 2 * PAD
     frac = max(0, min(100, level if level >= 0 else 0)) / 100.0
     fill_w = max(0.1, track_w * frac)
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d">'
-        "<defs>"
-        '<linearGradient id="g" x1="0" y1="0" x2="1" y2="0">'
-        '<stop offset="0" stop-color="%s"/><stop offset="1" stop-color="%s"/>'
-        "</linearGradient>"
-        '<pattern id="s" width="9" height="9" patternUnits="userSpaceOnUse" '
-        'patternTransform="rotate(45)">'
-        '<rect width="4" height="9" fill="%s"/>'
-        "</pattern>"
         '<clipPath id="c"><rect x="%d" y="10" width="%d" height="12" rx="6"/></clipPath>'
-        "</defs>"
         '<rect x="%d" y="10" width="%d" height="12" rx="6" fill="%s"/>'
         '<g clip-path="url(#c)">'
-        '<rect x="%d" y="10" width="%.1f" height="12" fill="url(#g)"/>'
-        '<rect x="%d" y="10" width="%.1f" height="12" fill="url(#s)"/>'
+        '<rect x="%d" y="10" width="%.1f" height="12" fill="%s"/>'
         "</g>"
         "</svg>"
-        % (W, H, base, light, hatch, PAD, track_w, PAD, track_w, dim,
-           PAD, fill_w, PAD, fill_w)
+        % (W, H, PAD, track_w, PAD, track_w, dim, PAD, fill_w, base)
     )
 
 
