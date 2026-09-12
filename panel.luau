@@ -7,6 +7,34 @@ local COMMAND_KEY = "sony_pods_command"
 
 local snapshot = noctalia.state.get(SNAPSHOT_KEY) or {}
 
+-- User-provided device artwork: drop PNG/WEBP files into assets/ and map
+-- model_name -> file here. Shown at the top of the panel when connected.
+-- (snapshot.device_image from the backend, e.g. a downloaded render,
+-- takes precedence when set.)
+local DEVICE_ART = {
+	["WH-1000XM6"] = "assets/wh-1000xm6.png",
+	["WH-1000XM5"] = "assets/wh-1000xm5.png",
+	["WH-1000XM4"] = "assets/wh-1000xm4.png",
+	["WH-1000XM3"] = "assets/wh-1000xm3.png",
+	["WF-1000XM5"] = "assets/wf-1000xm5.png",
+	["WF-1000XM4"] = "assets/wf-1000xm4.png",
+	["WF-1000XM3"] = "assets/wf-1000xm3.png",
+	["LinkBuds S"] = "assets/linkbuds-s.png",
+	["WH-CH720N"] = "assets/wh-ch720n.png",
+	["ULT WEAR"] = "assets/ult-wear.png",
+}
+
+local function deviceImagePath()
+	if snapshot.device_image and snapshot.device_image ~= "" then
+		return snapshot.device_image
+	end
+	local model = snapshot.model_name or snapshot.device_name
+	if model and DEVICE_ART[model] then
+		return DEVICE_ART[model]
+	end
+	return nil
+end
+
 local commandSeq = 0
 local function sendCommand(action, value)
 	commandSeq += 1
@@ -30,6 +58,35 @@ local function render()
 	local body = {}
 
 	if connected then
+		-- Device artwork (user assets) or a fallback glyph
+		local artPath = deviceImagePath()
+		if artPath then
+			table.insert(body, ui.row({
+				align = "center",
+				justify = "center",
+				padding = 2,
+			}, {
+				ui.image({
+					path = artPath,
+					width = 180,
+					height = 138,
+					fit = "contain",
+				}),
+			}))
+		else
+			table.insert(body, ui.row({
+				align = "center",
+				justify = "center",
+				padding = 2,
+			}, {
+				ui.glyph({
+					name = "headphones",
+					size = 64,
+					color = "primary",
+				}),
+			}))
+		end
+
 		-- Battery section
 		local bLevel = snapshot.battery
 		if bLevel == nil or bLevel < 0 then
