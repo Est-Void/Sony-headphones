@@ -45,17 +45,10 @@ local function sendCommand(action, value)
 	})
 end
 
-local function levelFraction(level)
-	local n = tonumber(level)
-	if n == nil or n < 0 then
-		return 0
-	end
-	return math.max(0, math.min(100, n)) / 100
-end
-
 local function gaugeBlock()
-	-- Horseshoe SVG rendered by scripts/sony_ctl.py (% baked into the center).
-	-- Falls back to the linear bar when the gauge file is missing.
+	-- Compact battery row: small horseshoe gauge (SVG arc in the system
+	-- accent, rendered by scripts/sony_ctl.py) + % label next to it.
+	-- Falls back to text when the gauge file is missing.
 	local gaugePath = snapshot.battery_gauge
 	local bLevel = snapshot.battery
 	if bLevel == nil or bLevel < 0 then
@@ -64,37 +57,38 @@ local function gaugeBlock()
 	local hasLevel = bLevel ~= nil and bLevel >= 0
 	local low = hasLevel and bLevel <= 20 and not snapshot.charging
 
-	local nodes = {}
+	local gaugeNode
 	if gaugePath and gaugePath ~= "" then
-		table.insert(nodes, ui.image({
+		gaugeNode = ui.image({
 			path = gaugePath,
-			width = 150,
-			height = 150,
+			width = 56,
+			height = 56,
 			fit = "contain",
-		}))
+		})
 	else
-		table.insert(nodes, ui.label({
-			text = hasLevel and (tostring(bLevel) .. "%") or "--%",
-			fontSize = 28,
-			fontWeight = "bold",
-			color = low and "error" or "on_surface",
-			textAlign = "center",
-		}))
-		table.insert(nodes, ui.progress({
-			progress = hasLevel and levelFraction(bLevel) or 0,
-			height = 6,
-			radius = 3,
-			fill = low and "error" or (snapshot.charging and "secondary" or "primary"),
-			width = 220,
-		}))
+		gaugeNode = ui.glyph({
+			name = "battery-3",
+			size = 40,
+			color = low and "error" or "primary",
+		})
 	end
-	table.insert(nodes, ui.label({
-		text = snapshot.charging and noctalia.tr("panel.charging") or " ",
-		fontSize = 11,
-		color = "secondary",
-		textAlign = "center",
-	}))
-	return ui.column({ gap = 2, align = "center" }, nodes)
+
+	return ui.row({ gap = 12, align = "center", justify = "center" }, {
+		gaugeNode,
+		ui.column({ gap = 0, align = "start" }, {
+			ui.label({
+				text = hasLevel and (tostring(bLevel) .. "%") or "--%",
+				fontSize = 22,
+				fontWeight = "bold",
+				color = low and "error" or "on_surface",
+			}),
+			ui.label({
+				text = snapshot.charging and noctalia.tr("panel.charging") or noctalia.tr("panel.battery"),
+				fontSize = 11,
+				color = snapshot.charging and "secondary" or "on_surface_variant",
+			}),
+		}),
+	})
 end
 
 local function render()
@@ -112,8 +106,8 @@ local function render()
 			}, {
 				ui.image({
 					path = artPath,
-					width = 180,
-					height = 138,
+					width = 260,
+					height = 228,
 					fit = "contain",
 				}),
 			}))
@@ -136,8 +130,22 @@ local function render()
 
 		table.insert(body, ui.separator({ thickness = 1, color = "on_surface/0.12" }))
 
-		-- Noise control
+		-- Noise control: single row of 3 glyph-only buttons
 		local currentMode = snapshot.noise_mode or "off"
+		local function modeButton(key, mode, glyph)
+			return ui.button({
+				key = key,
+				glyph = glyph,
+				glyphSize = 20,
+				variant = (currentMode == mode) and "tonal" or "ghost",
+				selected = (currentMode == mode),
+				tooltip = noctalia.tr("panel.mode." .. mode),
+				flexGrow = 1,
+				onClick = function()
+					sendCommand("set-noise", mode)
+				end,
+			})
+		end
 		table.insert(body, ui.column({ gap = 4 }, {
 			ui.label({
 				text = noctalia.tr("panel.noise_control"),
@@ -145,38 +153,10 @@ local function render()
 				fontWeight = "bold",
 				color = "on_surface_variant",
 			}),
-			ui.button({
-				key = "mode-anc",
-				text = noctalia.tr("panel.mode.anc"),
-				glyph = "shield-check",
-				variant = (currentMode == "anc") and "tonal" or "ghost",
-				selected = (currentMode == "anc"),
-				contentAlign = "start",
-				onClick = function()
-					sendCommand("set-noise", "anc")
-				end,
-			}),
-			ui.button({
-				key = "mode-transparency",
-				text = noctalia.tr("panel.mode.transparency"),
-				glyph = "ear",
-				variant = (currentMode == "transparency") and "tonal" or "ghost",
-				selected = (currentMode == "transparency"),
-				contentAlign = "start",
-				onClick = function()
-					sendCommand("set-noise", "transparency")
-				end,
-			}),
-			ui.button({
-				key = "mode-off",
-				text = noctalia.tr("panel.mode.off"),
-				glyph = "volume-off",
-				variant = (currentMode == "off") and "tonal" or "ghost",
-				selected = (currentMode == "off"),
-				contentAlign = "start",
-				onClick = function()
-					sendCommand("set-noise", "off")
-				end,
+			ui.row({ gap = 6 }, {
+				modeButton("mode-anc", "anc", "shield-check"),
+				modeButton("mode-transparency", "transparency", "ear"),
+				modeButton("mode-off", "off", "volume-off"),
 			}),
 		}))
 

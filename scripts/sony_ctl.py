@@ -325,38 +325,51 @@ def _arc_path(cx, cy, r, start_deg, sweep_deg):
     return "M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f" % (x0, y0, r, r, large, x1, y1)
 
 
+def _theme_colors():
+    """Read the live Noctalia palette (accent + on-surface) with safe fallbacks."""
+    accent, on_surface, error = "#4c8dff", "#8a8a8a", "#e5484d"
+    try:
+        with open(os.path.expanduser("~/.config/noctalia/colors.json")) as f:
+            colors = json.load(f)
+        accent = colors.get("mPrimary", accent)
+        on_surface = colors.get("mOnSurface", on_surface)
+        error = colors.get("mError", error)
+    except Exception:
+        pass
+    return accent, on_surface, error
+
+
 def gauge_svg(level: int, charging: bool) -> str:
     """Horseshoe battery gauge (270 deg arc, gap at bottom) as SVG text.
 
-    Neutral colors readable on both dark and light panels. stdlib only.
+    Arc uses the live Noctalia system accent; % is rendered by the panel
+    itself (theme-aware), so the SVG holds arcs only. stdlib only.
     """
     cx, cy, r = 60, 62, 48
+    accent, _on_surface, error = _theme_colors()
     track = _arc_path(cx, cy, r, 135, 270)
     frac = max(0, min(100, level)) / 100.0
     value = _arc_path(cx, cy, r, 135, max(0.1, 270 * frac))
     if level <= 20 and not charging:
-        color = "#e5484d"
+        color = error
     elif charging:
         color = "#35c26e"
     else:
-        color = "#4c8dff"
-    label = ("%d%%" % level) if level >= 0 else "--%"
+        color = accent
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">'
         '<path d="%s" fill="none" stroke="rgba(128,128,128,0.35)" '
-        'stroke-width="10" stroke-linecap="round"/>'
+        'stroke-width="12" stroke-linecap="round"/>'
         '<path d="%s" fill="none" stroke="%s" '
-        'stroke-width="10" stroke-linecap="round"/>'
-        '<text x="60" y="70" text-anchor="middle" font-family="sans-serif" '
-        'font-size="22" font-weight="bold" fill="#8a8a8a">%s</text>'
-        "</svg>" % (track, value, color, label)
+        'stroke-width="12" stroke-linecap="round"/>'
+        "</svg>" % (track, value, color)
     )
 
 
 def ensure_gauge(level: int, charging: bool):
-    """(Re)write gauge.svg when level/state changed. Returns absolute path or None."""
+    """(Re)write gauge.svg when level/state/theme changed. Returns path or None."""
     global _GAUGE_LAST
-    key = (level, bool(charging))
+    key = (level, bool(charging), _theme_colors())
     if key == _GAUGE_LAST and os.path.exists(GAUGE_FILE):
         return GAUGE_FILE
     try:
