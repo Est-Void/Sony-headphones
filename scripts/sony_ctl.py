@@ -315,17 +315,45 @@ _GAUGE_LAST = None
 
 
 def _theme_colors():
-    """Read the live Noctalia palette (accent + on-surface) with safe fallbacks."""
-    accent, on_surface, error = "#4c8dff", "#8a8a8a", "#e5484d"
+    """Read the live Noctalia palette with safe fallbacks.
+
+    Returns dict of #rrggbb roles. No hardcoded theme colors in output:
+    every painted color derives from these roles.
+    """
+    roles = {
+        "primary": "#4c8dff",
+        "on_primary": "#ffffff",
+        "secondary": "#35c26e",
+        "error": "#e5484d",
+    }
     try:
         with open(os.path.expanduser("~/.config/noctalia/colors.json")) as f:
             colors = json.load(f)
-        accent = colors.get("mPrimary", accent)
-        on_surface = colors.get("mOnSurface", on_surface)
-        error = colors.get("mError", error)
+        mapping = {
+            "primary": "mPrimary",
+            "on_primary": "mOnPrimary",
+            "secondary": "mSecondary",
+            "error": "mError",
+        }
+        for role, key in mapping.items():
+            val = colors.get(key)
+            if isinstance(val, str) and val.startswith("#"):
+                roles[role] = val
     except Exception:
         pass
-    return accent, on_surface, error
+    return roles
+
+
+def _hex_to_rgb(hex_color: str):
+    try:
+        return tuple(int(hex_color[i : i + 2], 16) for i in (1, 3, 5))
+    except Exception:
+        return (76, 141, 255)
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    r, g, b = _hex_to_rgb(hex_color)
+    return "rgba(%d,%d,%d,%.2f)" % (r, g, b, alpha)
 
 
 def _mix_hex(hex1: str, hex2: str, t: float) -> str:
@@ -340,22 +368,25 @@ def _mix_hex(hex1: str, hex2: str, t: float) -> str:
 
 
 def gauge_svg(level: int, charging: bool) -> str:
-    """Striped gradient battery bar as SVG text.
+    """Dual-layer battery bar as SVG text (final design).
 
-    Rounded track + accent gradient fill with diagonal hatch overlay.
-    Arc uses the live Noctalia system accent; % is rendered by the panel
-    itself (theme-aware), so the SVG holds the bar only. stdlib only.
+    One rounded bar, two layers on top of each other: full-width dim layer
+    (empty part, accent at low alpha) + bright fill layer (charge level,
+    accent gradient with diagonal hatch). At 100% the dim layer is fully
+    covered. Every color derives from the live Noctalia palette. stdlib only.
     """
-    accent, _on_surface, error = _theme_colors()
+    roles = _theme_colors()
     if level <= 20 and not charging:
-        base = error if error.startswith("#") else "#e5484d"
+        base = roles["error"]
     elif charging:
-        base = "#35c26e"
+        base = roles["secondary"]
     else:
-        base = accent if accent.startswith("#") else "#4c8dff"
-    light = _mix_hex(base, "#ffffff", 0.45)
+        base = roles["primary"]
+    light = _mix_hex(base, "#ffffff", 0.40)
+    dim = _rgba(base, 0.22)
+    hatch = _rgba(roles["on_primary"], 0.30)
 
-    W, H, R, PAD = 300, 32, 7, 2
+    W, H, PAD = 300, 32, 2
     track_w = W - 2 * PAD
     frac = max(0, min(100, level if level >= 0 else 0)) / 100.0
     fill_w = max(0.1, track_w * frac)
@@ -367,16 +398,18 @@ def gauge_svg(level: int, charging: bool) -> str:
         "</linearGradient>"
         '<pattern id="s" width="9" height="9" patternUnits="userSpaceOnUse" '
         'patternTransform="rotate(45)">'
-        '<rect width="4" height="9" fill="rgba(255,255,255,0.28)"/>'
+        '<rect width="4" height="9" fill="%s"/>'
         "</pattern>"
         '<clipPath id="c"><rect x="%d" y="10" width="%d" height="12" rx="6"/></clipPath>'
         "</defs>"
-        '<rect x="%d" y="10" width="%d" height="12" rx="6" fill="rgba(128,128,128,0.30)"/>'
+        '<rect x="%d" y="10" width="%d" height="12" rx="6" fill="%s"/>'
         '<g clip-path="url(#c)">'
         '<rect x="%d" y="10" width="%.1f" height="12" fill="url(#g)"/>'
         '<rect x="%d" y="10" width="%.1f" height="12" fill="url(#s)"/>'
         "</g>"
-        "</svg>" % (W, H, base, light, PAD, track_w, PAD, track_w, PAD, fill_w, PAD, fill_w)
+        "</svg>"
+        % (W, H, base, light, hatch, PAD, track_w, PAD, track_w, dim,
+           PAD, fill_w, PAD, fill_w)
     )
 
 

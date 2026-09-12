@@ -75,19 +75,20 @@ local function gaugeBlock()
 		})
 	end
 
-	return ui.column({ gap = 4, align = "center" }, {
+	return ui.column({ gap = 2, align = "center" }, {
 		ui.label({
-			text = hasLevel and (tostring(bLevel) .. "%") or "--%",
-			fontSize = 22,
+			text = snapshot.charging and noctalia.tr("panel.charging") or noctalia.tr("panel.battery"),
+			fontSize = 11,
 			fontWeight = "bold",
-			color = low and "error" or "on_surface",
+			color = "on_surface_variant",
 			textAlign = "center",
 		}),
 		barNode,
 		ui.label({
-			text = snapshot.charging and noctalia.tr("panel.charging") or noctalia.tr("panel.battery"),
-			fontSize = 11,
-			color = snapshot.charging and "secondary" or "on_surface_variant",
+			text = hasLevel and (tostring(bLevel) .. "%") or "--%",
+			fontSize = 16,
+			fontWeight = "medium",
+			color = low and "error" or "on_surface_variant",
 			textAlign = "center",
 		}),
 	})
@@ -104,12 +105,12 @@ local function render()
 			table.insert(body, ui.row({
 				align = "center",
 				justify = "center",
-				padding = 2,
+				padding = 0,
 			}, {
 				ui.image({
 					path = artPath,
-					width = 260,
-					height = 228,
+					width = 200,
+					height = 175,
 					fit = "contain",
 				}),
 			}))
@@ -139,10 +140,10 @@ local function render()
 			local active = currentMode == mode
 			return ui.row({
 				key = key,
-				width = 52,
-				height = 52,
+				width = 35,
+				height = 35,
 				fill = active and "primary/0.28" or "on_surface/0.07",
-				radius = 26,
+				radius = 17,
 				align = "center",
 				justify = "center",
 				onClick = function()
@@ -151,7 +152,7 @@ local function render()
 			}, {
 				ui.glyph({
 					name = glyph,
-					size = 22,
+					size = 15,
 					color = active and "primary" or "on_surface_variant",
 				}),
 			})
@@ -198,19 +199,16 @@ local function render()
 
 	local titleText = snapshot.model_name or snapshot.device_name or noctalia.tr("panel.title")
 
-	panel.render(ui.column({ flexGrow = 1, gap = 8, padding = 10 }, {
-		ui.row({ align = "center", justify = "space_between", gap = 8 }, {
-			ui.glyph({
-				name = connected and "headphones" or "headphones-off",
-				size = 26,
-				color = connected and "primary" or "on_surface_variant",
-			}),
+	panel.render(ui.column({ flexGrow = 1, gap = 6, padding = 10 }, {
+		ui.row({ align = "center", gap = 8 }, {
+			ui.label({ text = "", width = 32 }),
 			ui.label({
 				text = titleText,
 				fontSize = 15,
 				fontWeight = "bold",
 				color = "on_surface",
 				maxLines = 1,
+				textAlign = "center",
 				flexGrow = 1,
 			}),
 			ui.button({
