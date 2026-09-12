@@ -1,6 +1,6 @@
 --!nonstrict
 -- Panel for Sony Pods
--- Battery status, noise control (ANC / Ambient + level slider).
+-- Device photo, horseshoe battery gauge (% in the center), 3 noise mode buttons.
 
 local SNAPSHOT_KEY = "sony_pods_snapshot"
 local COMMAND_KEY = "sony_pods_command"
@@ -12,8 +12,8 @@ local snapshot = noctalia.state.get(SNAPSHOT_KEY) or {}
 -- (snapshot.device_image from the backend, e.g. a downloaded render,
 -- takes precedence when set.)
 local DEVICE_ART = {
-	["WH-1000XM6"] = "assets/wh-1000xm6.png",
-	["WH-1000XM5"] = "assets/wh-1000xm5.png",
+	["WH-1000XM6"] = "assets/1000xm6_black.webp",
+	["WH-1000XM5"] = "assets/1000xm5_black.webp",
 	["WH-1000XM4"] = "assets/wh-1000xm4.png",
 	["WH-1000XM3"] = "assets/wh-1000xm3.png",
 	["WF-1000XM5"] = "assets/wf-1000xm5.png",
@@ -53,6 +53,50 @@ local function levelFraction(level)
 	return math.max(0, math.min(100, n)) / 100
 end
 
+local function gaugeBlock()
+	-- Horseshoe SVG rendered by scripts/sony_ctl.py (% baked into the center).
+	-- Falls back to the linear bar when the gauge file is missing.
+	local gaugePath = snapshot.battery_gauge
+	local bLevel = snapshot.battery
+	if bLevel == nil or bLevel < 0 then
+		bLevel = snapshot.battery_left
+	end
+	local hasLevel = bLevel ~= nil and bLevel >= 0
+	local low = hasLevel and bLevel <= 20 and not snapshot.charging
+
+	local nodes = {}
+	if gaugePath and gaugePath ~= "" then
+		table.insert(nodes, ui.image({
+			path = gaugePath,
+			width = 150,
+			height = 150,
+			fit = "contain",
+		}))
+	else
+		table.insert(nodes, ui.label({
+			text = hasLevel and (tostring(bLevel) .. "%") or "--%",
+			fontSize = 28,
+			fontWeight = "bold",
+			color = low and "error" or "on_surface",
+			textAlign = "center",
+		}))
+		table.insert(nodes, ui.progress({
+			progress = hasLevel and levelFraction(bLevel) or 0,
+			height = 6,
+			radius = 3,
+			fill = low and "error" or (snapshot.charging and "secondary" or "primary"),
+			width = 220,
+		}))
+	end
+	table.insert(nodes, ui.label({
+		text = snapshot.charging and noctalia.tr("panel.charging") or " ",
+		fontSize = 11,
+		color = "secondary",
+		textAlign = "center",
+	}))
+	return ui.column({ gap = 2, align = "center" }, nodes)
+end
+
 local function render()
 	local connected = snapshot.connected == true
 	local body = {}
@@ -87,42 +131,8 @@ local function render()
 			}))
 		end
 
-		-- Battery section
-		local bLevel = snapshot.battery
-		if bLevel == nil or bLevel < 0 then
-			bLevel = snapshot.battery_left
-		end
-		local hasLevel = bLevel ~= nil and bLevel >= 0
-		local low = hasLevel and bLevel <= 20 and not snapshot.charging
-
-		table.insert(body, ui.column({ gap = 4, align = "center" }, {
-			ui.label({
-				text = noctalia.tr("panel.battery"),
-				fontSize = 11,
-				fontWeight = "bold",
-				color = "on_surface_variant",
-			}),
-			ui.label({
-				text = hasLevel and (tostring(bLevel) .. "%") or "--%",
-				fontSize = 28,
-				fontWeight = "bold",
-				color = low and "error" or "on_surface",
-				textAlign = "center",
-			}),
-			ui.progress({
-				progress = hasLevel and levelFraction(bLevel) or 0,
-				height = 6,
-				radius = 3,
-				fill = low and "error" or (snapshot.charging and "secondary" or "primary"),
-				width = 220,
-			}),
-			ui.label({
-				text = snapshot.charging and noctalia.tr("panel.charging") or " ",
-				fontSize = 11,
-				color = "secondary",
-				textAlign = "center",
-			}),
-		}))
+		-- Horseshoe battery gauge with % in the center
+		table.insert(body, gaugeBlock())
 
 		table.insert(body, ui.separator({ thickness = 1, color = "on_surface/0.12" }))
 
@@ -170,27 +180,9 @@ local function render()
 			}),
 		}))
 
-		-- Ambient level slider (only meaningful in transparency mode)
-		local ambLevel = tonumber(snapshot.ambient_level) or 0
-		table.insert(body, ui.column({ gap = 4 }, {
-			ui.label({
-				text = noctalia.tr("panel.ambient_level") .. ": " .. tostring(ambLevel),
-				fontSize = 11,
-				fontWeight = "bold",
-				color = "on_surface_variant",
-			}),
-			ui.slider({
-				key = "ambient-slider",
-				min = 0,
-				max = 20,
-				step = 1,
-				value = ambLevel,
-				enabled = currentMode == "transparency",
-				onDragEnd = function(value)
-					sendCommand("set-ambient", tostring(math.floor(tonumber(value) or 0)))
-				end,
-			}),
-		}))
+		-- NOTE: no ambient-level control here by design: the XM5 does not
+		-- report the level back, so a slider would display a fake value.
+		-- Level is adjustable via IPC: `set-ambient 0..20`.
 	else
 		table.insert(body, ui.column({ align = "center", gap = 12, padding = 24 }, {
 			ui.glyph({
@@ -248,7 +240,9 @@ local function render()
 				onClick = "onCloseClicked",
 			}),
 		}),
-		ui.column({ flexGrow = 1, gap = 10 }, body),
+		ui.scroll({ flexGrow = 1 }, {
+			ui.column({ flexGrow = 1, gap = 10 }, body),
+		}),
 	}))
 end
 

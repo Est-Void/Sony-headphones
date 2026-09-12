@@ -59,6 +59,11 @@ P_NC_GET_ALT = bytes([0x66, 0x19])
 CACHE_DIR = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 STATE_FILE = os.path.join(CACHE_DIR, "sony_pods_state.json")
 
+MEDIA_CACHE_DIR = os.path.join(
+    os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "noctalia", "sony-pods"
+)
+GAUGE_FILE = os.path.join(MEDIA_CACHE_DIR, "gauge.svg")
+
 MODEL_NAMES = {
     "WH-1000XM6": "WH-1000XM6",
     "WH-1000XM5": "WH-1000XM5",
@@ -304,6 +309,68 @@ class SonySession:
         return got
 
 
+# ---------------------------------------------------------------- gauge
+
+import math as _math
+
+_GAUGE_LAST = None
+
+
+def _arc_path(cx, cy, r, start_deg, sweep_deg):
+    x0 = cx + r * _math.cos(_math.radians(start_deg))
+    y0 = cy + r * _math.sin(_math.radians(start_deg))
+    x1 = cx + r * _math.cos(_math.radians(start_deg + sweep_deg))
+    y1 = cy + r * _math.sin(_math.radians(start_deg + sweep_deg))
+    large = 1 if sweep_deg > 180 else 0
+    return "M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f" % (x0, y0, r, r, large, x1, y1)
+
+
+def gauge_svg(level: int, charging: bool) -> str:
+    """Horseshoe battery gauge (270 deg arc, gap at bottom) as SVG text.
+
+    Neutral colors readable on both dark and light panels. stdlib only.
+    """
+    cx, cy, r = 60, 62, 48
+    track = _arc_path(cx, cy, r, 135, 270)
+    frac = max(0, min(100, level)) / 100.0
+    value = _arc_path(cx, cy, r, 135, max(0.1, 270 * frac))
+    if level <= 20 and not charging:
+        color = "#e5484d"
+    elif charging:
+        color = "#35c26e"
+    else:
+        color = "#4c8dff"
+    label = ("%d%%" % level) if level >= 0 else "--%"
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">'
+        '<path d="%s" fill="none" stroke="rgba(128,128,128,0.35)" '
+        'stroke-width="10" stroke-linecap="round"/>'
+        '<path d="%s" fill="none" stroke="%s" '
+        'stroke-width="10" stroke-linecap="round"/>'
+        '<text x="60" y="70" text-anchor="middle" font-family="sans-serif" '
+        'font-size="22" font-weight="bold" fill="#8a8a8a">%s</text>'
+        "</svg>" % (track, value, color, label)
+    )
+
+
+def ensure_gauge(level: int, charging: bool):
+    """(Re)write gauge.svg when level/state changed. Returns absolute path or None."""
+    global _GAUGE_LAST
+    key = (level, bool(charging))
+    if key == _GAUGE_LAST and os.path.exists(GAUGE_FILE):
+        return GAUGE_FILE
+    try:
+        os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
+        tmp = GAUGE_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(gauge_svg(level, charging))
+        os.replace(tmp, GAUGE_FILE)
+        _GAUGE_LAST = key
+        return GAUGE_FILE
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------- queries
 
 
@@ -388,6 +455,9 @@ def query_device(mac: str, device_name=None):
             state["battery_right"] = bz
         if prev.get("connected"):
             state["timestamp"] = int(time.time())
+            state["battery_gauge"] = ensure_gauge(
+                state.get("battery", -1), state.get("charging", False)
+            ) or prev.get("battery_gauge")
             return state
         state["connected"] = False
         state["error"] = "Could not connect to Sony RFCOMM (channel %d)" % channel
@@ -417,13 +487,15 @@ def query_device(mac: str, device_name=None):
             nc = sess.transact(P_NC_GET_ALT, expect_prefixes=(bytes([0x67]), bytes([0x69])))
         mode = _parse_nc(nc)
         if mode is not None:
+            # Ambient level is not reported by the device; the cached
+            # last-set value is kept as-is.
             state["noise_mode"] = mode
-            # Ambient level is not reported by the device; keep last-set value.
-            if mode != MODE_TRANSPARENCY:
-                pass  # keep cached ambient_level for next transparency switch
 
         state["connected"] = True
         state.pop("error", None)
+        state["battery_gauge"] = ensure_gauge(
+            state.get("battery", -1), state.get("charging", False)
+        ) or prev.get("battery_gauge")
         _save_cache(state)
         return state
     finally:
