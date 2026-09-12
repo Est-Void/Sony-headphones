@@ -46,9 +46,9 @@ local function sendCommand(action, value)
 end
 
 local function gaugeBlock()
-	-- Compact battery row: small horseshoe gauge (SVG arc in the system
-	-- accent, rendered by scripts/sony_ctl.py) + % label next to it.
-	-- Falls back to text when the gauge file is missing.
+	-- Battery block: % label over a striped gradient bar (SVG rendered
+	-- by scripts/sony_ctl.py in the system accent). Text fallback
+	-- when the bar file is missing.
 	local gaugePath = snapshot.battery_gauge
 	local bLevel = snapshot.battery
 	if bLevel == nil or bLevel < 0 then
@@ -57,36 +57,38 @@ local function gaugeBlock()
 	local hasLevel = bLevel ~= nil and bLevel >= 0
 	local low = hasLevel and bLevel <= 20 and not snapshot.charging
 
-	local gaugeNode
+	local barNode
 	if gaugePath and gaugePath ~= "" then
-		gaugeNode = ui.image({
+		barNode = ui.image({
 			path = gaugePath,
-			width = 56,
-			height = 56,
+			width = 300,
+			height = 32,
 			fit = "contain",
 		})
 	else
-		gaugeNode = ui.glyph({
-			name = "battery-3",
-			size = 40,
-			color = low and "error" or "primary",
+		barNode = ui.progress({
+			progress = hasLevel and (math.max(0, math.min(100, bLevel)) / 100) or 0,
+			height = 12,
+			radius = 6,
+			fill = low and "error" or "primary",
+			width = 300,
 		})
 	end
 
-	return ui.row({ gap = 12, align = "center", justify = "center" }, {
-		gaugeNode,
-		ui.column({ gap = 0, align = "start" }, {
-			ui.label({
-				text = hasLevel and (tostring(bLevel) .. "%") or "--%",
-				fontSize = 22,
-				fontWeight = "bold",
-				color = low and "error" or "on_surface",
-			}),
-			ui.label({
-				text = snapshot.charging and noctalia.tr("panel.charging") or noctalia.tr("panel.battery"),
-				fontSize = 11,
-				color = snapshot.charging and "secondary" or "on_surface_variant",
-			}),
+	return ui.column({ gap = 4, align = "center" }, {
+		ui.label({
+			text = hasLevel and (tostring(bLevel) .. "%") or "--%",
+			fontSize = 22,
+			fontWeight = "bold",
+			color = low and "error" or "on_surface",
+			textAlign = "center",
+		}),
+		barNode,
+		ui.label({
+			text = snapshot.charging and noctalia.tr("panel.charging") or noctalia.tr("panel.battery"),
+			fontSize = 11,
+			color = snapshot.charging and "secondary" or "on_surface_variant",
+			textAlign = "center",
 		}),
 	})
 end
@@ -130,30 +132,38 @@ local function render()
 
 		table.insert(body, ui.separator({ thickness = 1, color = "on_surface/0.12" }))
 
-		-- Noise control: single row of 3 glyph-only buttons
+		-- Noise control: 3 small circular buttons in one row
+		-- (ui.box takes no children, so circles are rows with fill+radius)
 		local currentMode = snapshot.noise_mode or "off"
 		local function modeButton(key, mode, glyph)
-			return ui.button({
+			local active = currentMode == mode
+			return ui.row({
 				key = key,
-				glyph = glyph,
-				glyphSize = 20,
-				variant = (currentMode == mode) and "tonal" or "ghost",
-				selected = (currentMode == mode),
-				tooltip = noctalia.tr("panel.mode." .. mode),
-				flexGrow = 1,
+				width = 52,
+				height = 52,
+				fill = active and "primary/0.28" or "on_surface/0.07",
+				radius = 26,
+				align = "center",
+				justify = "center",
 				onClick = function()
 					sendCommand("set-noise", mode)
 				end,
+			}, {
+				ui.glyph({
+					name = glyph,
+					size = 22,
+					color = active and "primary" or "on_surface_variant",
+				}),
 			})
 		end
-		table.insert(body, ui.column({ gap = 4 }, {
+		table.insert(body, ui.column({ gap = 8, align = "center" }, {
 			ui.label({
 				text = noctalia.tr("panel.noise_control"),
 				fontSize = 11,
 				fontWeight = "bold",
 				color = "on_surface_variant",
 			}),
-			ui.row({ gap = 6 }, {
+			ui.row({ gap = 16, align = "center", justify = "center" }, {
 				modeButton("mode-anc", "anc", "shield-check"),
 				modeButton("mode-transparency", "transparency", "ear"),
 				modeButton("mode-off", "off", "volume-off"),
@@ -187,10 +197,6 @@ local function render()
 	end
 
 	local titleText = snapshot.model_name or snapshot.device_name or noctalia.tr("panel.title")
-	local statusText = connected and noctalia.tr("panel.status.connected") or noctalia.tr("panel.status.disconnected")
-	if connected and snapshot.mac then
-		statusText = statusText .. " • " .. snapshot.mac
-	end
 
 	panel.render(ui.column({ flexGrow = 1, gap = 8, padding = 10 }, {
 		ui.row({ align = "center", justify = "space_between", gap = 8 }, {
@@ -199,20 +205,13 @@ local function render()
 				size = 26,
 				color = connected and "primary" or "on_surface_variant",
 			}),
-			ui.column({ flexGrow = 1, gap = 2 }, {
-				ui.label({
-					text = titleText,
-					fontSize = 15,
-					fontWeight = "bold",
-					color = "on_surface",
-					maxLines = 1,
-				}),
-				ui.label({
-					text = statusText,
-					fontSize = 11,
-					color = connected and "secondary" or "on_surface_variant",
-					maxLines = 1,
-				}),
+			ui.label({
+				text = titleText,
+				fontSize = 15,
+				fontWeight = "bold",
+				color = "on_surface",
+				maxLines = 1,
+				flexGrow = 1,
 			}),
 			ui.button({
 				glyph = "close",

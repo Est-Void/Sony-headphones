@@ -62,7 +62,7 @@ STATE_FILE = os.path.join(CACHE_DIR, "sony_pods_state.json")
 MEDIA_CACHE_DIR = os.path.join(
     os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "noctalia", "sony-pods"
 )
-GAUGE_FILE = os.path.join(MEDIA_CACHE_DIR, "gauge.svg")
+GAUGE_FILE = os.path.join(MEDIA_CACHE_DIR, "battery_bar.svg")
 
 MODEL_NAMES = {
     "WH-1000XM6": "WH-1000XM6",
@@ -311,18 +311,7 @@ class SonySession:
 
 # ---------------------------------------------------------------- gauge
 
-import math as _math
-
 _GAUGE_LAST = None
-
-
-def _arc_path(cx, cy, r, start_deg, sweep_deg):
-    x0 = cx + r * _math.cos(_math.radians(start_deg))
-    y0 = cy + r * _math.sin(_math.radians(start_deg))
-    x1 = cx + r * _math.cos(_math.radians(start_deg + sweep_deg))
-    y1 = cy + r * _math.sin(_math.radians(start_deg + sweep_deg))
-    large = 1 if sweep_deg > 180 else 0
-    return "M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f" % (x0, y0, r, r, large, x1, y1)
 
 
 def _theme_colors():
@@ -339,30 +328,55 @@ def _theme_colors():
     return accent, on_surface, error
 
 
-def gauge_svg(level: int, charging: bool) -> str:
-    """Horseshoe battery gauge (270 deg arc, gap at bottom) as SVG text.
+def _mix_hex(hex1: str, hex2: str, t: float) -> str:
+    """Linear mix of two #rrggbb colors."""
+    try:
+        a = tuple(int(hex1[i : i + 2], 16) for i in (1, 3, 5))
+        b = tuple(int(hex2[i : i + 2], 16) for i in (1, 3, 5))
+    except Exception:
+        return hex1
+    m = tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+    return "#%02x%02x%02x" % m
 
+
+def gauge_svg(level: int, charging: bool) -> str:
+    """Striped gradient battery bar as SVG text.
+
+    Rounded track + accent gradient fill with diagonal hatch overlay.
     Arc uses the live Noctalia system accent; % is rendered by the panel
-    itself (theme-aware), so the SVG holds arcs only. stdlib only.
+    itself (theme-aware), so the SVG holds the bar only. stdlib only.
     """
-    cx, cy, r = 60, 62, 48
     accent, _on_surface, error = _theme_colors()
-    track = _arc_path(cx, cy, r, 135, 270)
-    frac = max(0, min(100, level)) / 100.0
-    value = _arc_path(cx, cy, r, 135, max(0.1, 270 * frac))
     if level <= 20 and not charging:
-        color = error
+        base = error if error.startswith("#") else "#e5484d"
     elif charging:
-        color = "#35c26e"
+        base = "#35c26e"
     else:
-        color = accent
+        base = accent if accent.startswith("#") else "#4c8dff"
+    light = _mix_hex(base, "#ffffff", 0.45)
+
+    W, H, R, PAD = 300, 32, 7, 2
+    track_w = W - 2 * PAD
+    frac = max(0, min(100, level if level >= 0 else 0)) / 100.0
+    fill_w = max(0.1, track_w * frac)
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">'
-        '<path d="%s" fill="none" stroke="rgba(128,128,128,0.35)" '
-        'stroke-width="12" stroke-linecap="round"/>'
-        '<path d="%s" fill="none" stroke="%s" '
-        'stroke-width="12" stroke-linecap="round"/>'
-        "</svg>" % (track, value, color)
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d">'
+        "<defs>"
+        '<linearGradient id="g" x1="0" y1="0" x2="1" y2="0">'
+        '<stop offset="0" stop-color="%s"/><stop offset="1" stop-color="%s"/>'
+        "</linearGradient>"
+        '<pattern id="s" width="9" height="9" patternUnits="userSpaceOnUse" '
+        'patternTransform="rotate(45)">'
+        '<rect width="4" height="9" fill="rgba(255,255,255,0.28)"/>'
+        "</pattern>"
+        '<clipPath id="c"><rect x="%d" y="10" width="%d" height="12" rx="6"/></clipPath>'
+        "</defs>"
+        '<rect x="%d" y="10" width="%d" height="12" rx="6" fill="rgba(128,128,128,0.30)"/>'
+        '<g clip-path="url(#c)">'
+        '<rect x="%d" y="10" width="%.1f" height="12" fill="url(#g)"/>'
+        '<rect x="%d" y="10" width="%.1f" height="12" fill="url(#s)"/>'
+        "</g>"
+        "</svg>" % (W, H, base, light, PAD, track_w, PAD, track_w, PAD, fill_w, PAD, fill_w)
     )
 
 
