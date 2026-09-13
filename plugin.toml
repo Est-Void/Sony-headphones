@@ -5,7 +5,7 @@
 id = "estvoid/sony-pods"
 name = "Sony Pods"
 version = "0.1.0"
-plugin_api = 14
+plugin_api = 18
 author = "estvoid"
 license = "MIT"
 icon = "headphones"
@@ -41,7 +41,7 @@ entry = "panel.luau"
 width = 340
 height = 440
 placement = "floating"
-position = "center_left"
+position = "top_center"
 open_near_click = false
 
 [[service]]

@@ -7,27 +7,39 @@ local COMMAND_KEY = "sony_pods_command"
 
 local snapshot = noctalia.state.get(SNAPSHOT_KEY) or {}
 
--- User-provided device artwork: drop PNG/WEBP files into assets/ and map
--- model_name -> file here. Shown at the top of the panel when connected.
+-- Forward declaration: render() is defined below but used by callbacks above.
+local render
+
+-- User-provided device artwork: per-model black/white variants from assets/.
+-- The subtle photo button at the bottom cycles the variant (session-local).
 -- (snapshot.device_image from the backend, e.g. a downloaded render,
 -- takes precedence when set.)
 local DEVICE_ART = {
-	["WH-1000XM6"] = "assets/wh_1000xm6_black.webp",
-	["WH-1000XM5"] = "assets/wh_1000xm5_black.webp",
-	["WH-1000XM4"] = "assets/wh_1000xm4_black.webp",
-	["WF-1000XM5"] = "assets/wf_1000xm5_black.webp",
-	["WH-CH720N"] = "assets/wh_ch730n_black.webp",
+	["WH-1000XM6"] = { black = "assets/wh_1000xm6_black.webp", white = "assets/wh_1000xm6_white.webp" },
+	["WH-1000XM5"] = { black = "assets/wh_1000xm5_black.webp", white = "assets/wh_1000xm5_white.webp" },
+	["WH-1000XM4"] = { black = "assets/wh_1000xm4_black.webp", white = "assets/wh_1000xm4_white.webp" },
+	["WF-1000XM5"] = { black = "assets/wf_1000xm5_black.webp", white = "assets/wf_1000xm5_white.webp" },
+	["WF-1000XM6"] = { black = "assets/wf_1000xm6_black.webp", white = "assets/wf_1000xm6_white.webp" },
+	["WH-1000MX4C"] = { black = "assets/wh_1000mx4c_black.webp", white = "assets/wh_1000mx4c_siver.webp" },
+	["WH-CH720N"] = { black = "assets/wh_ch730n_black.webp", white = "assets/wh_ch730n_white.webp" },
 }
+local artVariant = "black"
 
 local function deviceImagePath()
 	if snapshot.device_image and snapshot.device_image ~= "" then
 		return snapshot.device_image
 	end
 	local model = snapshot.model_name or snapshot.device_name
-	if model and DEVICE_ART[model] then
-		return DEVICE_ART[model]
+	local variants = model and DEVICE_ART[model]
+	if variants then
+		return variants[artVariant] or variants.black
 	end
 	return nil
+end
+
+function onCycleArtwork()
+	artVariant = (artVariant == "black") and "white" or "black"
+	render()
 end
 
 local commandSeq = 0
@@ -38,6 +50,48 @@ local function sendCommand(action, value)
 		value = value,
 		nonce = tostring(noctalia.nowMs()) .. "-" .. tostring(commandSeq),
 	})
+end
+
+-- Mode-switch animation state: crossfade the accent from animFrom to
+-- animTo over ANIM_MS; pendingMode masks the slow Bluetooth poll so the
+-- UI flips instantly and never snaps back mid-flight.
+local ANIM_MS = 220
+local animFrom = nil
+local animTo = nil
+local animT = 1
+local pendingMode = nil
+local pendingSince = 0
+
+function onModeClicked(mode)
+	local current = pendingMode or snapshot.noise_mode or "off"
+	if mode == current then
+		return
+	end
+	animFrom = current
+	animTo = mode
+	animT = 0
+	pendingMode = mode
+	pendingSince = noctalia.nowMs()
+	panel.setNeedsFrameTick(true)
+	sendCommand("set-noise", mode)
+	render()
+end
+
+function onFrameTick(deltaMs)
+	if animT < 1 then
+		animT = math.min(1, animT + (tonumber(deltaMs) or 16) / ANIM_MS)
+		render()
+	end
+	if pendingMode then
+		if snapshot.noise_mode == pendingMode or (noctalia.nowMs() - pendingSince) > 6000 then
+			pendingMode = nil
+		end
+	end
+	if animT >= 1 and not pendingMode then
+		animFrom = nil
+		animTo = nil
+		panel.setNeedsFrameTick(false)
+	end
 end
 
 local function gaugeBlock()
@@ -89,7 +143,7 @@ local function gaugeBlock()
 	})
 end
 
-local function render()
+render = function()
 	local connected = snapshot.connected == true
 	local body = {}
 
@@ -128,27 +182,40 @@ local function render()
 
 		table.insert(body, ui.separator({ thickness = 1, color = "on_surface/0.12" }))
 
-		-- Noise control: 3 small circular buttons in one row
-		-- (ui.box takes no children, so circles are rows with fill+radius)
-		local currentMode = snapshot.noise_mode or "off"
+		-- Noise control: 3 small circular buttons in one row.
+		-- (ui.box takes no children, so circles are rows with fill+radius.)
+		-- Active button is solid accent; switching crossfades the accent
+		-- from the old to the new button over ~220ms via frame ticks.
+		local currentMode = pendingMode or snapshot.noise_mode or "off"
+		local function heatFor(mode)
+			if animFrom and animTo then
+				if mode == animTo then
+					return animT
+				elseif mode == animFrom then
+					return 1 - animT
+				end
+			end
+			return (mode == currentMode) and 1 or 0
+		end
 		local function modeButton(key, mode, glyph)
-			local active = currentMode == mode
+			local h = heatFor(mode)
+			local fill = (h >= 1) and "primary" or string.format("primary/%.2f", 0.07 + 0.93 * h)
 			return ui.row({
 				key = key,
 				width = 35,
 				height = 35,
-				fill = active and "primary/0.28" or "on_surface/0.07",
+				fill = fill,
 				radius = 17,
 				align = "center",
 				justify = "center",
 				onClick = function()
-					sendCommand("set-noise", mode)
+					onModeClicked(mode)
 				end,
 			}, {
 				ui.glyph({
 					name = glyph,
 					size = 15,
-					color = active and "primary" or "on_surface_variant",
+					color = (h > 0.5) and "on_primary" or "on_surface_variant",
 				}),
 			})
 		end
@@ -165,6 +232,20 @@ local function render()
 				modeButton("mode-off", "off", "volume-off"),
 			}),
 		}))
+
+		-- Subtle artwork variant toggle (black/white unit color)
+		local model = snapshot.model_name or snapshot.device_name
+		if model and DEVICE_ART[model] and DEVICE_ART[model].white then
+			table.insert(body, ui.row({ justify = "center" }, {
+				ui.button({
+					key = "art-toggle",
+					glyph = "photo",
+					glyphSize = 13,
+					variant = "ghost",
+					onClick = "onCycleArtwork",
+				}),
+			}))
+		end
 
 		-- NOTE: no ambient-level control here by design: the XM5 does not
 		-- report the level back, so a slider would display a fake value.
