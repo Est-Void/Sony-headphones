@@ -1,84 +1,30 @@
-# Sony Headphones for Noctalia
+# Sony Headphones
 
-Battery monitor and noise control (ANC / Ambient Sound) for Sony Bluetooth
-headphones in [Noctalia](https://noctalia.dev) v5+.
+[Noctalia](https://noctalia.dev) v5+ plugin for Sony Bluetooth headphones:
+battery, ANC / Ambient Sound control, and per-model artwork over the
+reverse-engineered **MDR V2** protocol.
 
-Modeled after
-[`osp54/oppo-pods`](https://noctalia.dev/plugins/community/oppo-pods):
-bar widget (`sony_headphones`) + floating panel (`panel`) + background service
-(`service`), with a `python3`-only backend speaking Sony's reverse-engineered
-**MDR V2** binary protocol over Bluetooth RFCOMM (same protocol as the
-official Sound Connect app). No phone, no account, no extra dependencies.
+The plugin lives in [`sony_headphones/`](sony_headphones/) and is laid out for
+a drop-in [community-plugins](https://github.com/noctalia-dev/community-plugins)
+submission (`id = "estvoid/sony_headphones"`, directory `sony_headphones/`).
 
-Tested on **WH-1000XM5**. Other models are supported best-effort:
+- **Plugin docs:** [`sony_headphones/README.md`](sony_headphones/README.md)
+- **Backend CLI:** [`sony_headphones/scripts/sony_ctl.py`](sony_headphones/scripts/sony_ctl.py)
+- **Tests:** `python3 -m unittest discover -s sony_headphones/tests`
+- **Manifest lint:** `noctalia plugins lint sony_headphones`
 
-| Model | Battery | Noise modes | Notes |
-| ----- | ------- | ----------- | ----- |
-| WH-1000XM5 | ✅ V2 + BlueZ fallback | ✅ verified (`0x17` subtype) | reference device |
-| WH-1000XM6 | ✅ | ⚠️ untested (`0x19` fallback implemented) | please report |
-| WH-1000XM4 / XM3 | ✅ BlueZ | ⚠️ likely need V1 protocol | tracked for v0.2 |
-| WF-1000XM5 / WF-1000XM4 | ✅ BlueZ | ⚠️ untested V2 subtypes | please report |
-| LinkBuds / WH-CH720N / ULT | ✅ BlueZ | ⚠️ untested | please report |
+## Development
 
-Battery via BlueZ works for every model universally; only deep
-noise-control bytes differ per generation. Artwork in `assets/` already
-covers XM6/XM5/XM4, WF-XM5/XM6, MX4C and CH73x (black/white).
-
-## Requirements
-
-- `python3` on `PATH` (standard library only)
-- BlueZ Bluetooth stack with RFCOMM support (`bluetoothctl`, `sdptool`)
-- Paired and connected Sony headphones
-
-## Usage
-
-Add the `sony_headphones` widget to your bar via **Settings → Bar → Widgets**.
-
-- **Left-click** the bar icon to toggle the control panel.
-- **Right-click** the bar icon to cycle noise modes
-  (`Noise Cancelling` → `Ambient Sound` → `Off`).
-
-Toggle the panel from IPC / keybind:
+Add the checkout root as a `path` source and enable the plugin:
 
 ```sh
-noctalia msg panel-toggle estvoid/sony_headphones:panel
+noctalia msg plugins source add sony-dev path ~/Projects/Sony-headphones
+noctalia msg plugins enable estvoid/sony_headphones
 ```
 
-## Settings
+`.luau` edits hot-reload; manifest changes are picked up on the next config
+reload.
 
-| Setting                 | Type   | Default | Description                                                        |
-| ----------------------- | ------ | ------- | ------------------------------------------------------------------ |
-| `device_mac`            | string | `""`    | Bluetooth MAC of the headphones. Blank = auto-detect.              |
-| `hide_when_disconnected`| bool   | `true`  | Hide the bar widget when the headphones are not connected.         |
+## License
 
-## IPC
-
-```sh
-noctalia msg plugin estvoid/sony_headphones:service all cycle-noise
-noctalia msg plugin estvoid/sony_headphones:service all set-noise anc
-noctalia msg plugin estvoid/sony_headphones:service all set-noise transparency
-noctalia msg plugin estvoid/sony_headphones:service all set-noise off
-noctalia msg plugin estvoid/sony_headphones:service all set-ambient 12
-noctalia msg plugin estvoid/sony_headphones:service all refresh
-```
-
-The backend CLI works standalone too:
-
-```sh
-python3 scripts/sony_ctl.py status [--mac XX:XX:XX:XX:XX:XX]
-python3 scripts/sony_ctl.py set-anc anc|transparency|off
-python3 scripts/sony_ctl.py set-ambient 0..20
-python3 scripts/sony_ctl.py cycle-anc
-python3 scripts/sony_ctl.py cached
-```
-
-## Notes
-
-- Control channel is the Sony `Serial HPC` service
-  (`956c7b26-…`, usually RFCOMM channel 9), resolved via `sdptool`.
-- Over-ear models (WH-1000X) report a single battery level; BlueZ
-  `Battery Percentage` is used as fallback when RFCOMM is busy.
-- The XM5 does not echo the ambient level back, so the panel shows the
-  last-set level (persisted in `$XDG_RUNTIME_DIR/sony_headphones_state.json`).
-- v0.1 covers battery + noise modes + ambient level. EQ / DSEE /
-  Speak-to-Chat are planned for v0.2.
+MIT — see [LICENSE](LICENSE).

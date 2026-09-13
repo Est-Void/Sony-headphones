@@ -10,35 +10,71 @@ local snapshot = noctalia.state.get(SNAPSHOT_KEY) or {}
 -- Forward declaration: render() is defined below but used by callbacks above.
 local render
 
--- User-provided device artwork: per-model black/white variants from assets/.
--- The subtle photo button at the bottom cycles the variant (session-local).
--- (snapshot.device_image from the backend, e.g. a downloaded render,
--- takes precedence when set.)
+-- User-provided device artwork: per-model variant images from assets/.
+-- The subtle photo button in the header cycles through the variants
+-- (session-local). (snapshot.device_image from the backend, e.g. a
+-- downloaded render, takes precedence when set.)
 local DEVICE_ART = {
-	["WH-1000XM6"] = { black = "assets/wh_1000xm6_black.webp", white = "assets/wh_1000xm6_white.webp" },
-	["WH-1000XM5"] = { black = "assets/wh_1000xm5_black.webp", white = "assets/wh_1000xm5_white.webp" },
-	["WH-1000XM4"] = { black = "assets/wh_1000xm4_black.webp", white = "assets/wh_1000xm4_white.webp" },
-	["WF-1000XM5"] = { black = "assets/wf_1000xm5_black.webp", white = "assets/wf_1000xm5_white.webp" },
-	["WF-1000XM6"] = { black = "assets/wf_1000xm6_black.webp", white = "assets/wf_1000xm6_white.webp" },
-	["WH-1000MX4C"] = { black = "assets/wh_1000mx4c_black.webp", white = "assets/wh_1000mx4c_siver.webp" },
-	["WH-CH720N"] = { black = "assets/wh_ch730n_black.webp", white = "assets/wh_ch730n_white.webp" },
+	["WH-1000XM6"] = { "assets/wh_1000xm6_black.webp", "assets/wh_1000xm6_white.webp" },
+	["WH-1000XM5"] = { "assets/wh_1000xm5_black.webp", "assets/wh_1000xm5_white.webp" },
+	["WH-1000XM4"] = { "assets/wh_1000xm4_black.webp", "assets/wh_1000xm4_white.webp" },
+	["WF-1000XM5"] = { "assets/wf_1000xm5_black.webp", "assets/wf_1000xm5_white.webp" },
+	["WF-1000XM6"] = { "assets/wf_1000xm6_black.webp", "assets/wf_1000xm6_white.webp" },
+	["WH-1000XM4C"] = {
+		"assets/wh_1000mx4c_black.webp",
+		"assets/wh_1000mx4c_silver.webp",
+		"assets/wh_1000mx4c_lavender.webp",
+	},
+	["WH-1000XX"] = {
+		"assets/1000X_The_collexion_black.webp",
+		"assets/1000X_The_collexion_white.webp",
+	},
+	["WH-CH720N"] = { "assets/wh_ch730n_black.webp", "assets/wh_ch730n_white.webp" },
 }
-local artVariant = "black"
+
+-- Case-insensitive index so firmware/region spelling differences still match.
+local ART_INDEX = {}
+for key, variants in pairs(DEVICE_ART) do
+	ART_INDEX[key:lower()] = variants
+end
+
+-- Alternate Bluetooth names -> canonical DEVICE_ART key (lowercase).
+local ART_ALIASES = {
+	["wh-1000mx4c"] = "wh-1000xm4c", -- historical transposed id
+	["1000x the collexion"] = "wh-1000xx",
+	["1000x the collection"] = "wh-1000xx", -- common misspelling
+	["wh-1000xx/b"] = "wh-1000xx", -- black
+	["wh-1000xx/w"] = "wh-1000xx", -- white / platinum
+}
+
+local artIndex = 1
+
+local function deviceVariants()
+	local model = snapshot.model_name or snapshot.device_name
+	if not model then
+		return nil
+	end
+	local lower = model:lower()
+	return ART_INDEX[lower] or (ART_ALIASES[lower] and ART_INDEX[ART_ALIASES[lower]]) or nil
+end
 
 local function deviceImagePath()
 	if snapshot.device_image and snapshot.device_image ~= "" then
 		return snapshot.device_image
 	end
-	local model = snapshot.model_name or snapshot.device_name
-	local variants = model and DEVICE_ART[model]
-	if variants then
-		return variants[artVariant] or variants.black
+	local variants = deviceVariants()
+	if variants and #variants > 0 then
+		return variants[((artIndex - 1) % #variants) + 1]
 	end
 	return nil
 end
 
 function onCycleArtwork()
-	artVariant = (artVariant == "black") and "white" or "black"
+	local variants = deviceVariants()
+	if not variants or #variants < 2 then
+		return
+	end
+	artIndex = (artIndex % #variants) + 1
 	render()
 end
 
@@ -60,9 +96,18 @@ local pulseT = 0
 local pendingMode = nil
 local pendingSince = 0
 
+-- Coerce an unknown/absent mode (e.g. first cache read) to "off" so exactly
+-- one button is highlighted, matching the bar widget's behaviour.
+local function currentMode()
+	local mode = pendingMode or snapshot.noise_mode
+	if mode == "anc" or mode == "transparency" or mode == "off" then
+		return mode
+	end
+	return "off"
+end
+
 function onModeClicked(mode)
-	local current = pendingMode or snapshot.noise_mode or "off"
-	if mode == current then
+	if mode == currentMode() then
 		return
 	end
 	pendingMode = mode
@@ -72,7 +117,7 @@ function onModeClicked(mode)
 end
 
 function onFrameTick(deltaMs)
-	pulseT += (tonumber(deltaMs) or 16)
+	pulseT = (pulseT + (tonumber(deltaMs) or 16)) % PULSE_MS
 	if pendingMode then
 		if snapshot.noise_mode == pendingMode or (noctalia.nowMs() - pendingSince) > 6000 then
 			pendingMode = nil
@@ -190,10 +235,10 @@ render = function()
 		-- Noise control: 3 small circular buttons in one row.
 		-- (ui.box takes no children, so circles are rows with fill+radius.)
 		-- Active button is solid accent with a gentle pulse.
-		local currentMode = pendingMode or snapshot.noise_mode or "off"
+		local activeMode = currentMode()
 		local pulse = 0.5 + 0.5 * math.sin(pulseT / PULSE_MS * 2 * math.pi)
 		local function modeButton(key, mode, glyph)
-			local active = mode == currentMode
+			local active = mode == activeMode
 			local fill = active
 				and string.format("primary/%.2f", 0.72 + 0.28 * pulse)
 				or "primary/0.07"
@@ -257,9 +302,9 @@ render = function()
 	end
 
 	local titleText = snapshot.model_name or snapshot.device_name or noctalia.tr("panel.title")
-	local model = snapshot.model_name or snapshot.device_name
-	local variants = model and DEVICE_ART[model]
-	local hasArtToggle = variants ~= nil and variants.white ~= nil
+	local variants = deviceVariants()
+	local hasCustomImage = snapshot.device_image ~= nil and snapshot.device_image ~= ""
+	local hasArtToggle = not hasCustomImage and variants ~= nil and #variants > 1
 
 	local header
 	if hasArtToggle then

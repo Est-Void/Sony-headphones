@@ -69,6 +69,9 @@ MODEL_NAMES = {
     "WF-1000XM3": "WF-1000XM3",
     "LinkBuds S": "LinkBuds S",
     "WH-CH720N": "WH-CH720N",
+    "WH-1000XX": "WH-1000XX",
+    "1000X THE COLLEXION": "WH-1000XX",
+    "1000X THE COLLECTION": "WH-1000XX",
     "ULT WEAR": "ULT WEAR",
 }
 
@@ -187,7 +190,7 @@ def find_connected_device():
         if len(parts) >= 3:
             mac, name = parts[1], parts[2]
             low = name.lower()
-            if any(k in low for k in ("sony", "wh-", "wf-", "linkbuds", "ult", "ch7")):
+            if any(k in low for k in ("sony", "wh-", "wf-", "linkbuds", "ult wear", "ch7")):
                 return mac, name
     return None, None
 
@@ -204,6 +207,13 @@ def bluez_battery(mac: str):
     if m:
         try:
             return int(m.group(1), 16)
+        except ValueError:
+            return None
+    # Some bluetoothctl builds print a plain decimal percentage.
+    m = re.search(r"Battery Percentage:\s*(\d+)%?", out)
+    if m:
+        try:
+            return max(0, min(100, int(m.group(1))))
         except ValueError:
             return None
     return None
@@ -223,16 +233,21 @@ class SonySession:
         self.tx_seq = 0
         self.buf = bytearray()
 
-    def open(self) -> bool:
-        s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-        s.settimeout(self.timeout)
-        try:
-            s.connect((self.mac, self.channel))
-        except Exception:
-            s.close()
-            return False
-        self.sock = s
-        return True
+    def open(self, attempts: int = 3, delay: float = 0.4) -> bool:
+        """Connect with a few retries: BlueZ can hold the RFCOMM channel for a
+        moment after a previous short-lived session closes."""
+        for attempt in range(attempts):
+            s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+            s.settimeout(self.timeout)
+            try:
+                s.connect((self.mac, self.channel))
+                self.sock = s
+                return True
+            except Exception:
+                s.close()
+                if attempt + 1 < attempts:
+                    time.sleep(delay)
+        return False
 
     def close(self):
         try:
@@ -249,10 +264,21 @@ class SonySession:
             pass
 
     def _read_frames(self, want_ack_for_seq=None, collect=(), timeout=2.0):
-        """Read until we see ACK for our seq and/or collected payloads. Returns list of (type, payload)."""
+        """Read until we see ACK for our seq and/or collected payloads.
+
+        Returns a list of (type, payload). `collect` holds payload prefixes;
+        when non-empty, waiting continues until at least one collected payload
+        arrived (in addition to the ACK for our own frame).
+        """
         got = []
         deadline = time.time() + timeout
         self.sock.settimeout(0.3)
+
+        def collected():
+            if not collect:
+                return True
+            return any(p[: len(c)] == c for _, p in got for c in collect)
+
         while time.time() < deadline:
             try:
                 chunk = self.sock.recv(1024)
@@ -276,15 +302,8 @@ class SonySession:
                 else:
                     self._send_ack(seq)
                     got.append((ftype, payload))
-            if want_ack_for_seq is None and (not collect or any(
-                p[: len(c)] == c for _, p in got for c in collect
-            )):
-                if want_ack_for_seq is None and got is not None:
-                    # stop early once ACK arrived and (no filter or filter matched)
-                    if not collect or any(
-                        p[: len(c)] == c for _, p in got for c in collect
-                    ):
-                        break
+            if want_ack_for_seq is None and collected():
+                break
         return got
 
     def transact(self, payload: bytes, expect_prefixes=(), retries=3):
@@ -316,11 +335,17 @@ def _load_cache():
 
 
 def _save_cache(state):
+    """Write the cache atomically so concurrent CLI runs never see a torn file."""
+    tmp = STATE_FILE + ".tmp"
     try:
-        with open(STATE_FILE, "w") as f:
+        with open(tmp, "w") as f:
             json.dump(state, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, STATE_FILE)
     except Exception:
-        pass
+        try:
+            os.unlink(tmp)
+        except Exception:
+            pass
 
 
 def _parse_battery(payloads):
@@ -335,11 +360,13 @@ def _parse_battery(payloads):
 
 
 def _parse_nc(payloads):
-    """Returns mode (off/anc/transparency) or None.
+    """Returns (mode, subtype) or (None, None).
 
     WH-1000XM5 verified layout (7-byte RET 0x67 / NTFY 0x69):
         [cmd, 0x17|0x19, 0x01, on_off, ambient_flag, focus?, x]
         on_off: 0x00 = off, else on; ambient_flag 0x01 = ambient sound.
+    The subtype (0x17 for XM5, 0x19 for XM6) is remembered so the matching
+    set payload uses the same one the device answered to.
     NOTE: the device does not echo the ambient level (0-20) in this reply,
     so the level is tracked locally (last value we set, persisted in cache).
     """
@@ -348,10 +375,19 @@ def _parse_nc(payloads):
             on_off = p[3]
             ambient_flag = p[4]
             if on_off == 0x00:
-                return MODE_OFF
+                return MODE_OFF, p[1]
             if ambient_flag == 0x01:
-                return MODE_TRANSPARENCY
-            return MODE_ANC
+                return MODE_TRANSPARENCY, p[1]
+            return MODE_ANC, p[1]
+    return None, None
+
+
+def _canonical_model(name):
+    """Map an advertised Bluetooth name to a known model label, or None."""
+    low = (name or "").lower()
+    for known, canonical in MODEL_NAMES.items():
+        if known.lower() in low:
+            return canonical
     return None
 
 
@@ -372,10 +408,9 @@ def query_device(mac: str, device_name=None):
         "charging": prev.get("charging", False),
         "timestamp": int(time.time()),
     }
-    for known in MODEL_NAMES:
-        if known.lower() in (state["device_name"] or "").lower():
-            state["model_name"] = MODEL_NAMES[known]
-            break
+    canonical = _canonical_model(state["device_name"])
+    if canonical:
+        state["model_name"] = canonical
 
     channel = resolve_channel(mac)
     sess = SonySession(mac, channel)
@@ -415,11 +450,12 @@ def query_device(mac: str, device_name=None):
         nc = sess.transact(P_NC_GET, expect_prefixes=(bytes([0x67]), bytes([0x69])))
         if not nc:
             nc = sess.transact(P_NC_GET_ALT, expect_prefixes=(bytes([0x67]), bytes([0x69])))
-        mode = _parse_nc(nc)
+        mode, subtype = _parse_nc(nc)
         if mode is not None:
             # Ambient level is not reported by the device; the cached
             # last-set value is kept as-is.
             state["noise_mode"] = mode
+            state["nc_subtype"] = subtype
 
         state["connected"] = True
         state.pop("error", None)
@@ -429,26 +465,33 @@ def query_device(mac: str, device_name=None):
         sess.close()
 
 
-def _nc_payload(mode: str, level: int = 0) -> bytes:
-    """8-byte XM5-verified NC/ASM set payload (MamaJo3 golden bytes)."""
+def _nc_payload(mode: str, level: int = 0, subtype: int = 0x17) -> bytes:
+    """8-byte XM5-verified NC/ASM set payload (MamaJo3 golden bytes).
+
+    `subtype` defaults to 0x17 (XM5) and is 0x19 on XM6; it is taken from the
+    cached value the device last answered a GET on.
+    """
+    if subtype not in (0x17, 0x19):
+        subtype = 0x17
     level = max(0, min(20, int(level)))
     if mode == MODE_ANC:
-        return bytes([0x68, 0x17, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00])
+        return bytes([0x68, subtype, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00])
     if mode == MODE_TRANSPARENCY:
-        return bytes([0x68, 0x17, 0x01, 0x01, 0x01, 0x02, 0x00, level])
-    return bytes([0x68, 0x17, 0x01, 0x00, 0x00, 0x02, 0x00, 0x00])
+        return bytes([0x68, subtype, 0x01, 0x01, 0x01, 0x02, 0x00, level])
+    return bytes([0x68, subtype, 0x01, 0x00, 0x00, 0x02, 0x00, 0x00])
 
 
 def set_nc_mode(mac: str, mode: str, level: int = 0):
     mode = mode.lower()
     if mode not in (MODE_ANC, MODE_TRANSPARENCY, MODE_OFF):
         return {"success": False, "error": "Invalid mode: %s" % mode}
+    prev = _load_cache()
+    subtype = prev.get("nc_subtype", 0x17)
     sess = SonySession(mac, resolve_channel(mac))
     if not sess.open():
         return {"success": False, "error": "Could not connect to Sony RFCOMM"}
     try:
-        sess.transact(_nc_payload(mode, level))
-        prev = _load_cache()
+        sess.transact(_nc_payload(mode, level, subtype))
         prev.update(
             {"noise_mode": mode, "timestamp": int(time.time()), "connected": True, "mac": mac}
         )
@@ -465,32 +508,16 @@ def set_ambient(mac: str, level: int):
 
 
 def cycle_nc(mac: str):
-    current = _load_cache().get("noise_mode", MODE_OFF)
+    cache = _load_cache()
+    current = cache.get("noise_mode", MODE_OFF)
     try:
         nxt = CYCLE_MODES[(CYCLE_MODES.index(current) + 1) % len(CYCLE_MODES)]
     except ValueError:
         nxt = MODE_ANC
-    level = _load_cache().get("ambient_level", 20) or 20
-    res = set_nc_mode(mac, nxt, level)
-    if res.get("success"):
-        try:
-            subprocess.run(
-                [
-                    "notify-send",
-                    "Sony Headphones",
-                    "Mode: %s" % nxt,
-                    "-i",
-                    "audio-headphones",
-                    "-t",
-                    "1200",
-                    "-h",
-                    "string:x-canonical-private-synchronous:sony-anc",
-                ],
-                check=False,
-            )
-        except Exception:
-            pass
-    return res
+    level = cache.get("ambient_level", 20) or 20
+    # User-facing notifications are the service's job (noctalia.notify); the
+    # CLI stays silent so a widget click fires exactly one notification.
+    return set_nc_mode(mac, nxt, level)
 
 
 # ---------------------------------------------------------------- cli
@@ -529,10 +556,21 @@ def main():
         if args.value is None:
             print(json.dumps({"success": False, "error": "Missing level for set-ambient"}))
             sys.exit(1)
-        print(json.dumps(set_ambient(mac, int(args.value)), ensure_ascii=False))
+        try:
+            level = int(args.value)
+        except (TypeError, ValueError):
+            print(json.dumps({"success": False, "error": "Invalid level: %s" % args.value}))
+            sys.exit(1)
+        print(json.dumps(set_ambient(mac, level), ensure_ascii=False))
     elif args.command == "cycle-anc":
         print(json.dumps(cycle_nc(mac), ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except Exception as exc:  # never leak a traceback to the service's JSON parser
+        print(json.dumps({"connected": False, "error": str(exc)}, ensure_ascii=False))
+        sys.exit(1)

@@ -11,7 +11,7 @@ license = "MIT"
 icon = "headphones"
 description = "Sony headphones battery and noise control (ANC / Ambient Sound) in the bar."
 tags = ["audio", "bar", "panel", "service", "hardware", "indicator"]
-dependencies = ["python3"]
+dependencies = ["python3", "bluetoothctl", "sdptool"]
 
 [[setting]]
 key = "device_mac"

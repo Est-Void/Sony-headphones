@@ -1,6 +1,6 @@
 {
   "notify": {
-    "mode_changed": "Mode: %s"
+    "mode_changed": "Mode: {mode}"
   },
   "panel": {
     "ambient_level": "Ambient sound level",
@@ -35,10 +35,14 @@
   },
   "widget": {
     "action": {
-      "left_click": "Open Controls",
-      "right_click": "Cycle Noise Mode"
+      "left_click": "Left Click",
+      "right_click": "Right Click",
+      "open_controls": "Open Controls",
+      "cycle_noise": "Cycle Noise Mode"
     },
+    "device": "Device",
     "mode": "Mode",
-    "not_connected": "Headphones not connected"
+    "not_connected": "Headphones not connected",
+    "status": "Status"
   }
 }

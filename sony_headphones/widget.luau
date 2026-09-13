@@ -31,8 +31,8 @@ local function render()
 		barWidget.setGlyphColor("disabled")
 		barWidget.setText("")
 		barWidget.setTooltip({
-			{ key = noctalia.tr("panel.title"), value = noctalia.tr("widget.not_connected") },
-			{ key = noctalia.tr("widget.action.left_click"), value = noctalia.tr("panel.title") }
+			{ key = noctalia.tr("widget.status"), value = noctalia.tr("widget.not_connected") },
+			{ key = noctalia.tr("widget.action.left_click"), value = noctalia.tr("widget.action.open_controls") },
 		})
 		return
 	end
@@ -64,7 +64,7 @@ local function render()
 	end
 
 	local tooltipRows = {
-		{ key = "Device", value = snapshot.model_name or snapshot.device_name or noctalia.tr("panel.title") },
+		{ key = noctalia.tr("widget.device"), value = snapshot.model_name or snapshot.device_name or noctalia.tr("panel.title") },
 		{ key = noctalia.tr("widget.mode"), value = getModeName(mode) },
 	}
 
@@ -77,8 +77,8 @@ local function render()
 		table.insert(tooltipRows, { key = noctalia.tr("panel.battery"), value = tostring(bLevel) .. "%" .. chargingStr })
 	end
 
-	table.insert(tooltipRows, { key = "Left Click", value = noctalia.tr("widget.action.left_click") })
-	table.insert(tooltipRows, { key = "Right Click", value = noctalia.tr("widget.action.right_click") })
+	table.insert(tooltipRows, { key = noctalia.tr("widget.action.left_click"), value = noctalia.tr("widget.action.open_controls") })
+	table.insert(tooltipRows, { key = noctalia.tr("widget.action.right_click"), value = noctalia.tr("widget.action.cycle_noise") })
 
 	barWidget.setTooltip(tooltipRows)
 end
