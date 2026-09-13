@@ -357,12 +357,13 @@ def _rgba(hex_color: str, alpha: float) -> str:
 
 
 def gauge_svg(level: int, charging: bool) -> str:
-    """Dual-segment battery bar as SVG text (final design).
+    """Two separate battery segments as SVG text (final design).
 
-    Schematic: (=========)(===) — a bright SOLID charge segment grows from
-    the left, a dim empty segment shrinks toward it from the right; widths
-    follow the current level. Every color derives from the live Noctalia
-    palette. stdlib only.
+    Schematic: (=========)(===) — a bright SOLID charge pill on the left
+    and a dim empty pill on the right, separated by a small gap; widths
+    follow the current level. At 100% only the charge pill remains, at 0%
+    only the empty one. Every color derives from the live Noctalia palette.
+    stdlib only.
     """
     roles = _theme_colors()
     if level <= 20 and not charging:
@@ -373,20 +374,28 @@ def gauge_svg(level: int, charging: bool) -> str:
         base = roles["primary"]
     dim = _rgba(base, 0.22)
 
-    W, H, PAD = 260, 32, 2
+    W, H, PAD, GAP = 260, 32, 2, 6
     track_w = W - 2 * PAD
     frac = max(0, min(100, level if level >= 0 else 0)) / 100.0
-    fill_w = max(0.1, track_w * frac)
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d">'
-        '<clipPath id="c"><rect x="%d" y="10" width="%d" height="12" rx="6"/></clipPath>'
-        '<rect x="%d" y="10" width="%d" height="12" rx="6" fill="%s"/>'
-        '<g clip-path="url(#c)">'
-        '<rect x="%d" y="10" width="%.1f" height="12" fill="%s"/>'
-        "</g>"
-        "</svg>"
-        % (W, H, PAD, track_w, PAD, track_w, dim, PAD, fill_w, base)
-    )
+    inner = track_w - GAP
+    fill_w = inner * frac
+    empty_x = PAD + fill_w + GAP
+    empty_w = track_w - fill_w - GAP
+    parts = [
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d">' % (W, H)
+    ]
+    if fill_w >= 1:
+        parts.append(
+            '<rect x="%d" y="10" width="%.1f" height="12" rx="6" fill="%s"/>'
+            % (PAD, fill_w, base)
+        )
+    if empty_w >= 1:
+        parts.append(
+            '<rect x="%.1f" y="10" width="%.1f" height="12" rx="6" fill="%s"/>'
+            % (empty_x, empty_w, dim)
+        )
+    parts.append("</svg>")
+    return "".join(parts)
 
 
 def ensure_gauge(level: int, charging: bool):

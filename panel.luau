@@ -201,7 +201,7 @@ local function render()
 
 	panel.render(ui.column({ flexGrow = 1, gap = 6, padding = 10 }, {
 		ui.row({ align = "center", gap = 8 }, {
-			ui.label({ text = "", width = 32 }),
+			ui.label({ text = "", width = 38 }),
 			ui.label({
 				text = titleText,
 				fontSize = 15,
