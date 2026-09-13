@@ -52,13 +52,11 @@ local function sendCommand(action, value)
 	})
 end
 
--- Mode-switch animation state: crossfade the accent from animFrom to
--- animTo over ANIM_MS; pendingMode masks the slow Bluetooth poll so the
--- UI flips instantly and never snaps back mid-flight.
-local ANIM_MS = 220
-local animFrom = nil
-local animTo = nil
-local animT = 1
+-- Mode-switch state: pendingMode masks the slow Bluetooth poll so the
+-- UI flips instantly and never snaps back mid-flight. The active button
+-- gently pulses via frame ticks (enabled in onOpen, auto-stopped on close).
+local PULSE_MS = 1600
+local pulseT = 0
 local pendingMode = nil
 local pendingSince = 0
 
@@ -67,61 +65,68 @@ function onModeClicked(mode)
 	if mode == current then
 		return
 	end
-	animFrom = current
-	animTo = mode
-	animT = 0
 	pendingMode = mode
 	pendingSince = noctalia.nowMs()
-	panel.setNeedsFrameTick(true)
 	sendCommand("set-noise", mode)
 	render()
 end
 
 function onFrameTick(deltaMs)
-	if animT < 1 then
-		animT = math.min(1, animT + (tonumber(deltaMs) or 16) / ANIM_MS)
-		render()
-	end
+	pulseT += (tonumber(deltaMs) or 16)
 	if pendingMode then
 		if snapshot.noise_mode == pendingMode or (noctalia.nowMs() - pendingSince) > 6000 then
 			pendingMode = nil
 		end
 	end
-	if animT >= 1 and not pendingMode then
-		animFrom = nil
-		animTo = nil
-		panel.setNeedsFrameTick(false)
-	end
+	render()
 end
 
 local function gaugeBlock()
-	-- Battery block: % label over a striped gradient bar (SVG rendered
-	-- by scripts/sony_ctl.py in the system accent). Text fallback
-	-- when the bar file is missing.
-	local gaugePath = snapshot.battery_gauge
+	-- Battery block: % label over two separate live-accent segments
+	-- (charge pill + dim empty pill, widths follow the level).
+	-- Pure ui.progress with palette role tokens, so the colors always
+	-- match the live Noctalia scheme (incl. wallpaper-generated ones).
 	local bLevel = snapshot.battery
 	if bLevel == nil or bLevel < 0 then
 		bLevel = snapshot.battery_left
 	end
 	local hasLevel = bLevel ~= nil and bLevel >= 0
+	local frac = hasLevel and (math.max(0, math.min(100, bLevel)) / 100) or 0
 	local low = hasLevel and bLevel <= 20 and not snapshot.charging
 
-	local barNode
-	if gaugePath and gaugePath ~= "" then
-		barNode = ui.image({
-			path = gaugePath,
-			width = 260,
-			height = 28,
-			fit = "contain",
-		})
-	else
-		barNode = ui.progress({
-			progress = hasLevel and (math.max(0, math.min(100, bLevel)) / 100) or 0,
-			height = 12,
-			radius = 6,
-			fill = low and "error" or "primary",
-			width = 300,
-		})
+	local accent = low and "error" or "primary"
+	local dim = low and "error/0.22" or "primary/0.22"
+	local total, gap = 254, 6
+	local fillW = total * frac
+	local emptyW = total * (1 - frac)
+
+	local barNodes = {}
+	if fillW >= 10 then
+		table.insert(barNodes, ui.progress({
+			progress = 1,
+			fill = accent,
+			width = math.floor(fillW),
+			height = 9,
+			radius = 4,
+		}))
+	end
+	if emptyW >= 10 then
+		table.insert(barNodes, ui.progress({
+			progress = 1,
+			fill = dim,
+			width = math.floor(emptyW),
+			height = 9,
+			radius = 4,
+		}))
+	end
+	if #barNodes == 0 then
+		table.insert(barNodes, ui.progress({
+			progress = 1,
+			fill = dim,
+			width = total,
+			height = 9,
+			radius = 4,
+		}))
 	end
 
 	return ui.column({ gap = 2, align = "center" }, {
@@ -132,7 +137,7 @@ local function gaugeBlock()
 			color = "on_surface_variant",
 			textAlign = "center",
 		}),
-		barNode,
+		ui.row({ gap = gap, align = "center", justify = "center" }, barNodes),
 		ui.label({
 			text = hasLevel and (tostring(bLevel) .. "%") or "--%",
 			fontSize = 16,
@@ -184,22 +189,14 @@ render = function()
 
 		-- Noise control: 3 small circular buttons in one row.
 		-- (ui.box takes no children, so circles are rows with fill+radius.)
-		-- Active button is solid accent; switching crossfades the accent
-		-- from the old to the new button over ~220ms via frame ticks.
+		-- Active button is solid accent with a gentle pulse.
 		local currentMode = pendingMode or snapshot.noise_mode or "off"
-		local function heatFor(mode)
-			if animFrom and animTo then
-				if mode == animTo then
-					return animT
-				elseif mode == animFrom then
-					return 1 - animT
-				end
-			end
-			return (mode == currentMode) and 1 or 0
-		end
+		local pulse = 0.5 + 0.5 * math.sin(pulseT / PULSE_MS * 2 * math.pi)
 		local function modeButton(key, mode, glyph)
-			local h = heatFor(mode)
-			local fill = (h >= 1) and "primary" or string.format("primary/%.2f", 0.07 + 0.93 * h)
+			local active = mode == currentMode
+			local fill = active
+				and string.format("primary/%.2f", 0.72 + 0.28 * pulse)
+				or "primary/0.07"
 			return ui.row({
 				key = key,
 				width = 35,
@@ -215,7 +212,7 @@ render = function()
 				ui.glyph({
 					name = glyph,
 					size = 15,
-					color = (h > 0.5) and "on_primary" or "on_surface_variant",
+					color = active and "on_primary" or "on_surface_variant",
 				}),
 			})
 		end
@@ -232,20 +229,6 @@ render = function()
 				modeButton("mode-off", "off", "volume-off"),
 			}),
 		}))
-
-		-- Subtle artwork variant toggle (black/white unit color)
-		local model = snapshot.model_name or snapshot.device_name
-		if model and DEVICE_ART[model] and DEVICE_ART[model].white then
-			table.insert(body, ui.row({ justify = "center" }, {
-				ui.button({
-					key = "art-toggle",
-					glyph = "photo",
-					glyphSize = 13,
-					variant = "ghost",
-					onClick = "onCycleArtwork",
-				}),
-			}))
-		end
 
 		-- NOTE: no ambient-level control here by design: the XM5 does not
 		-- report the level back, so a slider would display a fake value.
@@ -274,19 +257,46 @@ render = function()
 	end
 
 	local titleText = snapshot.model_name or snapshot.device_name or noctalia.tr("panel.title")
+	local model = snapshot.model_name or snapshot.device_name
+	local variants = model and DEVICE_ART[model]
+	local hasArtToggle = variants ~= nil and variants.white ~= nil
 
-	panel.render(ui.column({ flexGrow = 1, gap = 6, padding = 10 }, {
-		ui.label({
+	local header
+	if hasArtToggle then
+		header = ui.row({ align = "center", gap = 8 }, {
+			ui.label({ text = "", width = 32 }),
+			ui.label({
+				text = titleText,
+				fontSize = 15,
+				fontWeight = "bold",
+				color = "on_surface",
+				maxLines = 1,
+				textAlign = "center",
+				flexGrow = 1,
+			}),
+			ui.button({
+				key = "art-toggle",
+				glyph = "photo",
+				glyphSize = 14,
+				variant = "ghost",
+				controlSize = "sm",
+				onClick = "onCycleArtwork",
+			}),
+		})
+	else
+		header = ui.label({
 			text = titleText,
 			fontSize = 15,
 			fontWeight = "bold",
 			color = "on_surface",
 			maxLines = 1,
 			textAlign = "center",
-		}),
-		ui.scroll({ flexGrow = 1 }, {
-			ui.column({ flexGrow = 1, gap = 10 }, body),
-		}),
+		})
+	end
+
+	panel.render(ui.column({ flexGrow = 1, gap = 6, padding = 10 }, {
+		header,
+		ui.column({ flexGrow = 1, gap = 10 }, body),
 	}))
 end
 
@@ -299,9 +309,6 @@ end)
 
 function onOpen(_context)
 	sendCommand("refresh", nil)
+	panel.setNeedsFrameTick(true)
 	render()
-end
-
-function onCloseClicked()
-	panel.close()
 end

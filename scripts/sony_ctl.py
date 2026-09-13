@@ -59,11 +59,6 @@ P_NC_GET_ALT = bytes([0x66, 0x19])
 CACHE_DIR = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 STATE_FILE = os.path.join(CACHE_DIR, "sony_pods_state.json")
 
-MEDIA_CACHE_DIR = os.path.join(
-    os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "noctalia", "sony-pods"
-)
-GAUGE_FILE = os.path.join(MEDIA_CACHE_DIR, "battery_bar.svg")
-
 MODEL_NAMES = {
     "WH-1000XM6": "WH-1000XM6",
     "WH-1000XM5": "WH-1000XM5",
@@ -309,113 +304,6 @@ class SonySession:
         return got
 
 
-# ---------------------------------------------------------------- gauge
-
-_GAUGE_LAST = None
-
-
-def _theme_colors():
-    """Read the live Noctalia palette with safe fallbacks.
-
-    Returns dict of #rrggbb roles. No hardcoded theme colors in output:
-    every painted color derives from these roles.
-    """
-    roles = {
-        "primary": "#4c8dff",
-        "on_primary": "#ffffff",
-        "secondary": "#35c26e",
-        "error": "#e5484d",
-    }
-    try:
-        with open(os.path.expanduser("~/.config/noctalia/colors.json")) as f:
-            colors = json.load(f)
-        mapping = {
-            "primary": "mPrimary",
-            "on_primary": "mOnPrimary",
-            "secondary": "mSecondary",
-            "error": "mError",
-        }
-        for role, key in mapping.items():
-            val = colors.get(key)
-            if isinstance(val, str) and val.startswith("#"):
-                roles[role] = val
-    except Exception:
-        pass
-    return roles
-
-
-def _hex_to_rgb(hex_color: str):
-    try:
-        return tuple(int(hex_color[i : i + 2], 16) for i in (1, 3, 5))
-    except Exception:
-        return (76, 141, 255)
-
-
-def _rgba(hex_color: str, alpha: float) -> str:
-    r, g, b = _hex_to_rgb(hex_color)
-    return "rgba(%d,%d,%d,%.2f)" % (r, g, b, alpha)
-
-
-def gauge_svg(level: int, charging: bool) -> str:
-    """Two separate battery segments as SVG text (final design).
-
-    Schematic: (=========)(===) — a bright SOLID charge pill on the left
-    and a dim empty pill on the right, separated by a small gap; widths
-    follow the current level. At 100% only the charge pill remains, at 0%
-    only the empty one. Every color derives from the live Noctalia palette.
-    stdlib only.
-    """
-    roles = _theme_colors()
-    if level <= 20 and not charging:
-        base = roles["error"]
-    elif charging:
-        base = roles["secondary"]
-    else:
-        base = roles["primary"]
-    dim = _rgba(base, 0.22)
-
-    W, H, PAD, GAP = 260, 28, 2, 6
-    track_w = W - 2 * PAD
-    frac = max(0, min(100, level if level >= 0 else 0)) / 100.0
-    inner = track_w - GAP
-    fill_w = inner * frac
-    empty_x = PAD + fill_w + GAP
-    empty_w = track_w - fill_w - GAP
-    parts = [
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d">' % (W, H)
-    ]
-    if fill_w >= 1:
-        parts.append(
-            '<rect x="%d" y="10" width="%.1f" height="9" rx="4.5" fill="%s"/>'
-            % (PAD, fill_w, base)
-        )
-    if empty_w >= 1:
-        parts.append(
-            '<rect x="%.1f" y="10" width="%.1f" height="9" rx="4.5" fill="%s"/>'
-            % (empty_x, empty_w, dim)
-        )
-    parts.append("</svg>")
-    return "".join(parts)
-
-
-def ensure_gauge(level: int, charging: bool):
-    """(Re)write gauge.svg when level/state/theme changed. Returns path or None."""
-    global _GAUGE_LAST
-    key = (level, bool(charging), _theme_colors())
-    if key == _GAUGE_LAST and os.path.exists(GAUGE_FILE):
-        return GAUGE_FILE
-    try:
-        os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
-        tmp = GAUGE_FILE + ".tmp"
-        with open(tmp, "w") as f:
-            f.write(gauge_svg(level, charging))
-        os.replace(tmp, GAUGE_FILE)
-        _GAUGE_LAST = key
-        return GAUGE_FILE
-    except Exception:
-        return None
-
-
 # ---------------------------------------------------------------- queries
 
 
@@ -500,9 +388,6 @@ def query_device(mac: str, device_name=None):
             state["battery_right"] = bz
         if prev.get("connected"):
             state["timestamp"] = int(time.time())
-            state["battery_gauge"] = ensure_gauge(
-                state.get("battery", -1), state.get("charging", False)
-            ) or prev.get("battery_gauge")
             return state
         state["connected"] = False
         state["error"] = "Could not connect to Sony RFCOMM (channel %d)" % channel
@@ -538,9 +423,6 @@ def query_device(mac: str, device_name=None):
 
         state["connected"] = True
         state.pop("error", None)
-        state["battery_gauge"] = ensure_gauge(
-            state.get("battery", -1), state.get("charging", False)
-        ) or prev.get("battery_gauge")
         _save_cache(state)
         return state
     finally:
