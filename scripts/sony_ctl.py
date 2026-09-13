@@ -57,7 +57,7 @@ P_NC_GET = bytes([0x66, 0x17])        # NCASM_GET_PARAM, subtype 0x17 (XM5); fal
 P_NC_GET_ALT = bytes([0x66, 0x19])
 
 CACHE_DIR = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-STATE_FILE = os.path.join(CACHE_DIR, "sony_pods_state.json")
+STATE_FILE = os.path.join(CACHE_DIR, "sony_headphones_state.json")
 
 MODEL_NAMES = {
     "WH-1000XM6": "WH-1000XM6",

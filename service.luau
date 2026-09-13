@@ -2,8 +2,8 @@
 -- Service for Sony Pods
 -- Polls headphones via scripts/sony_ctl.py (MDR V2 over RFCOMM)
 
-local SNAPSHOT_KEY = "sony_pods_snapshot"
-local COMMAND_KEY = "sony_pods_command"
+local SNAPSHOT_KEY = "sony_headphones_snapshot"
+local COMMAND_KEY = "sony_headphones_command"
 
 local scriptPath = noctalia.pluginDir() .. "/scripts/sony_ctl.py"
 

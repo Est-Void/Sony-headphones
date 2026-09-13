@@ -2,8 +2,8 @@
 -- Panel for Sony Pods
 -- Device photo, horseshoe battery gauge (% in the center), 3 noise mode buttons.
 
-local SNAPSHOT_KEY = "sony_pods_snapshot"
-local COMMAND_KEY = "sony_pods_command"
+local SNAPSHOT_KEY = "sony_headphones_snapshot"
+local COMMAND_KEY = "sony_headphones_command"
 
 local snapshot = noctalia.state.get(SNAPSHOT_KEY) or {}
 

@@ -5,7 +5,7 @@ headphones in [Noctalia](https://noctalia.dev) v5+.
 
 Modeled after
 [`osp54/oppo-pods`](https://noctalia.dev/plugins/community/oppo-pods):
-bar widget (`sony-pods`) + floating panel (`panel`) + background service
+bar widget (`sony_headphones`) + floating panel (`panel`) + background service
 (`service`), with a `python3`-only backend speaking Sony's reverse-engineered
 **MDR V2** binary protocol over Bluetooth RFCOMM (same protocol as the
 official Sound Connect app). No phone, no account, no extra dependencies.
@@ -32,7 +32,7 @@ covers XM6/XM5/XM4, WF-XM5/XM6, MX4C and CH73x (black/white).
 
 ## Usage
 
-Add the `sony-pods` widget to your bar via **Settings → Bar → Widgets**.
+Add the `sony_headphones` widget to your bar via **Settings → Bar → Widgets**.
 
 - **Left-click** the bar icon to toggle the control panel.
 - **Right-click** the bar icon to cycle noise modes
@@ -41,7 +41,7 @@ Add the `sony-pods` widget to your bar via **Settings → Bar → Widgets**.
 Toggle the panel from IPC / keybind:
 
 ```sh
-noctalia msg panel-toggle estvoid/sony-pods:panel
+noctalia msg panel-toggle estvoid/sony_headphones:panel
 ```
 
 ## Settings
@@ -54,12 +54,12 @@ noctalia msg panel-toggle estvoid/sony-pods:panel
 ## IPC
 
 ```sh
-noctalia msg plugin estvoid/sony-pods:service all cycle-noise
-noctalia msg plugin estvoid/sony-pods:service all set-noise anc
-noctalia msg plugin estvoid/sony-pods:service all set-noise transparency
-noctalia msg plugin estvoid/sony-pods:service all set-noise off
-noctalia msg plugin estvoid/sony-pods:service all set-ambient 12
-noctalia msg plugin estvoid/sony-pods:service all refresh
+noctalia msg plugin estvoid/sony_headphones:service all cycle-noise
+noctalia msg plugin estvoid/sony_headphones:service all set-noise anc
+noctalia msg plugin estvoid/sony_headphones:service all set-noise transparency
+noctalia msg plugin estvoid/sony_headphones:service all set-noise off
+noctalia msg plugin estvoid/sony_headphones:service all set-ambient 12
+noctalia msg plugin estvoid/sony_headphones:service all refresh
 ```
 
 The backend CLI works standalone too:
@@ -79,6 +79,6 @@ python3 scripts/sony_ctl.py cached
 - Over-ear models (WH-1000X) report a single battery level; BlueZ
   `Battery Percentage` is used as fallback when RFCOMM is busy.
 - The XM5 does not echo the ambient level back, so the panel shows the
-  last-set level (persisted in `$XDG_RUNTIME_DIR/sony_pods_state.json`).
+  last-set level (persisted in `$XDG_RUNTIME_DIR/sony_headphones_state.json`).
 - v0.1 covers battery + noise modes + ambient level. EQ / DSEE /
   Speak-to-Chat are planned for v0.2.

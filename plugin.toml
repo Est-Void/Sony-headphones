@@ -2,7 +2,7 @@
 # Battery and noise control for Sony Bluetooth headphones (WH/WF-1000X series, LinkBuds, etc.)
 # via the reverse-engineered MDR V2 RFCOMM protocol.
 
-id = "estvoid/sony-pods"
+id = "estvoid/sony_headphones"
 name = "Sony Pods"
 version = "0.1.0"
 plugin_api = 18
@@ -21,12 +21,12 @@ description_key = "settings.device_mac.description"
 default = ""
 
 [[widget]]
-id = "sony-pods"
+id = "sony_headphones"
 entry = "widget.luau"
 
   [widget.actions]
-  left = "panel-toggle estvoid/sony-pods:panel"
-  right = "plugin estvoid/sony-pods:service all cycle-noise"
+  left = "panel-toggle estvoid/sony_headphones:panel"
+  right = "plugin estvoid/sony_headphones:service all cycle-noise"
 
   [[widget.setting]]
   key = "hide_when_disconnected"

@@ -1,7 +1,7 @@
 --!nonstrict
 -- Bar widget for Sony Pods
 
-local SNAPSHOT_KEY = "sony_pods_snapshot"
+local SNAPSHOT_KEY = "sony_headphones_snapshot"
 
 local snapshot = noctalia.state.get(SNAPSHOT_KEY) or {}
 local hideWhenDisconnected = noctalia.getConfig("hide_when_disconnected") ~= false
