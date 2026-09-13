@@ -374,7 +374,7 @@ def gauge_svg(level: int, charging: bool) -> str:
         base = roles["primary"]
     dim = _rgba(base, 0.22)
 
-    W, H, PAD, GAP = 260, 32, 2, 6
+    W, H, PAD, GAP = 260, 28, 2, 6
     track_w = W - 2 * PAD
     frac = max(0, min(100, level if level >= 0 else 0)) / 100.0
     inner = track_w - GAP
@@ -386,12 +386,12 @@ def gauge_svg(level: int, charging: bool) -> str:
     ]
     if fill_w >= 1:
         parts.append(
-            '<rect x="%d" y="10" width="%.1f" height="12" rx="6" fill="%s"/>'
+            '<rect x="%d" y="10" width="%.1f" height="9" rx="4.5" fill="%s"/>'
             % (PAD, fill_w, base)
         )
     if empty_w >= 1:
         parts.append(
-            '<rect x="%.1f" y="10" width="%.1f" height="12" rx="6" fill="%s"/>'
+            '<rect x="%.1f" y="10" width="%.1f" height="9" rx="4.5" fill="%s"/>'
             % (empty_x, empty_w, dim)
         )
     parts.append("</svg>")

@@ -200,22 +200,13 @@ local function render()
 	local titleText = snapshot.model_name or snapshot.device_name or noctalia.tr("panel.title")
 
 	panel.render(ui.column({ flexGrow = 1, gap = 6, padding = 10 }, {
-		ui.row({ align = "center", gap = 8 }, {
-			ui.label({ text = "", width = 38 }),
-			ui.label({
-				text = titleText,
-				fontSize = 15,
-				fontWeight = "bold",
-				color = "on_surface",
-				maxLines = 1,
-				textAlign = "center",
-				flexGrow = 1,
-			}),
-			ui.button({
-				glyph = "close",
-				variant = "ghost",
-				onClick = "onCloseClicked",
-			}),
+		ui.label({
+			text = titleText,
+			fontSize = 15,
+			fontWeight = "bold",
+			color = "on_surface",
+			maxLines = 1,
+			textAlign = "center",
 		}),
 		ui.scroll({ flexGrow = 1 }, {
 			ui.column({ flexGrow = 1, gap = 10 }, body),
