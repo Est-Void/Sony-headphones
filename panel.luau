@@ -264,7 +264,18 @@ render = function()
 	local header
 	if hasArtToggle then
 		header = ui.row({ align = "center", gap = 8 }, {
-			ui.label({ text = "", width = 32 }),
+			-- Invisible twin of the art button (opacity 0 keeps layout
+			-- space, empty onClick keeps the same hit-shape metrics):
+			-- identical geometry, so the title is centered by construction.
+			ui.button({
+				key = "art-spacer",
+				glyph = "photo",
+				glyphSize = 14,
+				variant = "ghost",
+				controlSize = "sm",
+				opacity = 0,
+				onClick = function() end,
+			}),
 			ui.label({
 				text = titleText,
 				fontSize = 15,
