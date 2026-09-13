@@ -1,5 +1,5 @@
 --!nonstrict
--- Service for Sony Pods
+-- Service for Sony Headphones
 -- Polls headphones via scripts/sony_ctl.py (MDR V2 over RFCOMM)
 
 local SNAPSHOT_KEY = "sony_headphones_snapshot"
@@ -39,7 +39,7 @@ end
 local function notifyMode(mode)
 	local modeLabel = noctalia.tr("panel.mode." .. mode)
 	local curState = noctalia.state.get(SNAPSHOT_KEY)
-	local devName = (curState and (curState.model_name or curState.device_name)) or "Sony Pods"
+	local devName = (curState and (curState.model_name or curState.device_name)) or "Sony Headphones"
 	noctalia.notify(devName, string.format(noctalia.tr("notify.mode_changed"), modeLabel), "headphones")
 end
 

@@ -1,5 +1,5 @@
 --!nonstrict
--- Panel for Sony Pods
+-- Panel for Sony Headphones
 -- Device photo, horseshoe battery gauge (% in the center), 3 noise mode buttons.
 
 local SNAPSHOT_KEY = "sony_headphones_snapshot"

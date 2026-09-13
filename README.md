@@ -1,4 +1,4 @@
-# Sony Pods for Noctalia
+# Sony Headphones for Noctalia
 
 Battery monitor and noise control (ANC / Ambient Sound) for Sony Bluetooth
 headphones in [Noctalia](https://noctalia.dev) v5+.

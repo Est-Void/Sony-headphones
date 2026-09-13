@@ -17,11 +17,11 @@
       "connected": "Подключено",
       "disconnected": "Не подключено"
     },
-    "title": "Sony Pods"
+    "title": "Sony Headphones"
   },
   "plugin": {
     "description": "Заряд и управление шумом наушников Sony (ANC / окружающий звук) в баре.",
-    "name": "Sony Pods"
+    "name": "Sony Headphones"
   },
   "settings": {
     "device_mac": {

@@ -17,11 +17,11 @@
       "connected": "Connected",
       "disconnected": "Not Connected"
     },
-    "title": "Sony Pods"
+    "title": "Sony Headphones"
   },
   "plugin": {
     "description": "Sony headphones battery and noise control (ANC / Ambient Sound) in the bar.",
-    "name": "Sony Pods"
+    "name": "Sony Headphones"
   },
   "settings": {
     "device_mac": {

@@ -1,9 +1,9 @@
-# Sony Pods for Noctalia
+# Sony Headphones for Noctalia
 # Battery and noise control for Sony Bluetooth headphones (WH/WF-1000X series, LinkBuds, etc.)
 # via the reverse-engineered MDR V2 RFCOMM protocol.
 
 id = "estvoid/sony_headphones"
-name = "Sony Pods"
+name = "Sony Headphones"
 version = "0.1.0"
 plugin_api = 18
 author = "estvoid"

@@ -1,5 +1,5 @@
 --!nonstrict
--- Bar widget for Sony Pods
+-- Bar widget for Sony Headphones
 
 local SNAPSHOT_KEY = "sony_headphones_snapshot"
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sony Pods backend for Noctalia — MDR V2 (WH/WF-1000X series, LinkBuds, …).
+Sony Headphones backend for Noctalia — MDR V2 (WH/WF-1000X series, LinkBuds, …).
 
 Speaks Sony's reverse-engineered MDR V2 binary protocol over Bluetooth RFCOMM
 (the same protocol the official Sound Connect app uses), using only the
@@ -477,7 +477,7 @@ def cycle_nc(mac: str):
             subprocess.run(
                 [
                     "notify-send",
-                    "Sony Pods",
+                    "Sony Headphones",
                     "Mode: %s" % nxt,
                     "-i",
                     "audio-headphones",
