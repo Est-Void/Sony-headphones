@@ -12,16 +12,11 @@ local snapshot = noctalia.state.get(SNAPSHOT_KEY) or {}
 -- (snapshot.device_image from the backend, e.g. a downloaded render,
 -- takes precedence when set.)
 local DEVICE_ART = {
-	["WH-1000XM6"] = "assets/1000xm6_black.webp",
-	["WH-1000XM5"] = "assets/1000xm5_black.webp",
-	["WH-1000XM4"] = "assets/wh-1000xm4.png",
-	["WH-1000XM3"] = "assets/wh-1000xm3.png",
-	["WF-1000XM5"] = "assets/wf-1000xm5.png",
-	["WF-1000XM4"] = "assets/wf-1000xm4.png",
-	["WF-1000XM3"] = "assets/wf-1000xm3.png",
-	["LinkBuds S"] = "assets/linkbuds-s.png",
-	["WH-CH720N"] = "assets/wh-ch720n.png",
-	["ULT WEAR"] = "assets/ult-wear.png",
+	["WH-1000XM6"] = "assets/wh_1000xm6_black.webp",
+	["WH-1000XM5"] = "assets/wh_1000xm5_black.webp",
+	["WH-1000XM4"] = "assets/wh_1000xm4_black.webp",
+	["WF-1000XM5"] = "assets/wf_1000xm5_black.webp",
+	["WH-CH720N"] = "assets/wh_ch730n_black.webp",
 }
 
 local function deviceImagePath()
