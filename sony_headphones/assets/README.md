@@ -1,12 +1,20 @@
 # Device artwork
 
-The images in this directory are **original artwork** created for this plugin:
-stylised, flat illustrations of over-ear and in-ear headphones. They are part
-of the plugin and licensed under its MIT license — no third-party product
-photography, vendor render, or trademarked logo is included.
+## Provenance & license
 
-Each `.webp` is rasterised from the matching `.svg` source next to it. Regenerate
-or tweak the set with:
+- **Source:** original artwork created for this plugin. No third-party product
+  photography or vendor renders are bundled, and no Sony or other trademarked
+  logo is reproduced.
+- **Author:** the plugin author (`estvoid`).
+- **License:** MIT, the same license declared in `plugin.toml`.
+
+These images are intentionally generic placeholders; the author plans to
+replace them with their own hand-drawn sketches. Any replacement keeps the
+same MIT licensing and stays free of third-party branding.
+
+The images are **stylised, flat illustrations** of over-ear and in-ear
+headphones. Each `.webp` is rasterised from the matching `.svg` source next to
+it. Regenerate or tweak the set with:
 
 ```sh
 python3 tools/generate_art.py           # writes the .svg sources
