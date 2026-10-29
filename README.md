@@ -2,7 +2,8 @@
 
 [Noctalia](https://noctalia.dev) v5+ plugin for Sony Bluetooth headphones:
 battery, ANC / Ambient Sound control, and per-model artwork over the
-reverse-engineered **MDR V2** protocol.
+reverse-engineered **MDR V2** protocol, with safe BlueZ-only battery fallback
+for **MDR V1** models (WH-1000XM4/XM3/XM2).
 
 The plugin lives in [`sony_headphones/`](sony_headphones/) and is laid out for
 a drop-in [community-plugins](https://github.com/noctalia-dev/community-plugins)
